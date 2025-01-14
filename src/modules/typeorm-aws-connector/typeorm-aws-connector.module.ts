@@ -1,7 +1,7 @@
 import { Module, DynamicModule, Global, Provider } from "@nestjs/common";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ITypeOrmAwsConnectorModuleAsyncOptions } from "@shared/interface/typeorm-aws-connector/module-async-options.interface";
-import { TypeormAwsConnectorService } from "@modules/typeorm-aws-connector/typeorm-aws-connector.service";
+import { TypeOrmAwsConnectorService } from "@modules/typeorm-aws-connector/typeorm-aws-connector.service";
 import { RotatorService } from "@modules/typeorm-aws-connector/rotator/rotator.service";
 import { createDatabaseConfigProvider, DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
 import { ITypeOrmAwsConnectorModuleOptions } from "@shared/interface/typeorm-aws-connector/module-options.interface";
@@ -15,7 +15,7 @@ export class TypeOrmAwsConnectorModule {
 				provide: DATABASE_CONFIG_PROVIDER,
 				useValue: config,
 			},
-			TypeormAwsConnectorService,
+			TypeOrmAwsConnectorService,
 		];
 
 		const isRotationEnabled = config.rotation?.isEnabled;
@@ -33,12 +33,12 @@ export class TypeOrmAwsConnectorModule {
 			module: TypeOrmAwsConnectorModule,
 			imports,
 			providers,
-			exports: [TypeormAwsConnectorService, ...(isRotationEnabled ? [RotatorService] : [])],
+			exports: [TypeOrmAwsConnectorService, ...(isRotationEnabled ? [RotatorService] : [])],
 		};
 	}
 
 	static async registerAsync(options: ITypeOrmAwsConnectorModuleAsyncOptions): Promise<DynamicModule> {
-		const providers = [createDatabaseConfigProvider(options), TypeormAwsConnectorService];
+		const providers = [createDatabaseConfigProvider(options), TypeOrmAwsConnectorService];
 
 		const imports = [...(options.imports || [])];
 
@@ -54,7 +54,7 @@ export class TypeOrmAwsConnectorModule {
 			module: TypeOrmAwsConnectorModule,
 			imports,
 			providers,
-			exports: [TypeormAwsConnectorService, ...(isRotationEnabled ? [RotatorService] : [])],
+			exports: [TypeOrmAwsConnectorService, ...(isRotationEnabled ? [RotatorService] : [])],
 		};
 	}
 }
