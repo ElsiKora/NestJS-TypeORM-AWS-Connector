@@ -1,4 +1,7 @@
 <p align="center">
+  <img src="https://i.ibb.co/rtBYhTH/Untitled-1.png" width="500" alt="project-logo">
+</p>
+<p align="center">
   <h1 align="center">NestJS TypeORM AWS Connector</h1>
 </p>
 
@@ -139,11 +142,11 @@ export class AppModule {}
 | databaseName       | string    | Yes      | -       | Name of the database to connect to                             |
 | port               | number    | Yes      | -       | Database port number                                           |
 | entities           | Entity[]  | Yes      | -       | Array of entity classes to be loaded                           |
-| poolSize           | number    | No       | 10      | Maximum number of connections in the pool                      |
-| connectionTimeoutMs| number    | No       | 30000   | Connection timeout in milliseconds                             |
-| idleTimeoutMs      | number    | No       | 30000   | Idle connection timeout in milliseconds                        |
-| isVerbose          | boolean   | No       | false   | Enable verbose logging                                         |
-| shouldSynchronize  | boolean   | No       | false   | Automatically synchronize database schema                      |
+| poolSize           | number    | Yes     | 10      | Maximum number of connections in the pool                      |
+| connectionTimeoutMs| number    | Yes     | 30000   | Connection timeout in milliseconds                             |
+| idleTimeoutMs      | number    | Yes     | 30000   | Idle connection timeout in milliseconds                        |
+| isVerbose          | boolean   | Yes     | false   | Enable verbose logging                                         |
+| shouldSynchronize  | boolean   | Yes     | false   | Automatically synchronize database schema                      |
 | rotation.isEnabled | boolean   | No       | false   | Enable connection rotation                                     |
 | rotation.intervalMs| number    | No       | 5000    | Connection rotation interval in milliseconds                   |
 
