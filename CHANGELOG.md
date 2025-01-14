@@ -1,5 +1,11 @@
 # @elsikora/nestjs-aws-param-store-config
 
+## 1.1.0
+
+### Minor Changes
+
+- b8a362f: Refactor database module to TypeOrm AWS Connector
+
 ## 1.0.1
 
 ### Patch Changes
