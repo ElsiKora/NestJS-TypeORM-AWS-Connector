@@ -16,8 +16,8 @@ export class RotatorService implements OnModuleInit {
 	) {}
 
 	onModuleInit() {
-		if (this.dbConfig.rotation?.isEnabled) {
-			const intervalMs = this.dbConfig.rotation.intervalMs;
+		if (this.databaseConfig.rotation?.isEnabled) {
+			const intervalMs = this.databaseConfig.rotation.intervalMs;
 
 			const interval = setInterval(() => {
 				this.rotateDatabaseConnection();

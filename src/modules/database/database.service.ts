@@ -45,20 +45,20 @@ export class DatabaseService {
 		const host = this.parameterStoreConfigService.get(`/${this.configService.get<string>("APPLICATION")}/elastic-beanstalk/${this.configService.get<string>("APPLICATION")}-reaper-api/aws-rds/host`);
 
 		const options = {
-			type: this.dbConfig.type as any,
+			type: this.databaseConfig.type as any,
 			host,
-			port: this.dbConfig.port,
+			port: this.databaseConfig.port,
 			username: credentials.username,
 			password: credentials.password,
-			database: this.dbConfig.databaseName,
-			logging: this.dbConfig.isVerbose,
-			synchronize: this.dbConfig.shouldSynchronize,
+			database: this.databaseConfig.databaseName,
+			logging: this.databaseConfig.isVerbose || false,
+			synchronize: this.databaseConfig.shouldSynchronize || false,
 			extra: {
-				connectionTimeoutMillis: this.dbConfig.connectionTimeoutMs,
-				idleTimeoutMillis: this.dbConfig.idleTimeoutMs,
-				max: this.dbConfig.poolSize,
+				connectionTimeoutMillis: this.databaseConfig.connectionTimeoutMs || 30000,
+				idleTimeoutMillis: this.databaseConfig.idleTimeoutMs || 30000,
+				max: this.databaseConfig.poolSize || 10,
 			},
-			entities: this.dbConfig.entities,
+			entities: this.databaseConfig.entities,
 		};
 
 		this.logger.debug(`TypeORM options сформированы: ${JSON.stringify(options)}`);

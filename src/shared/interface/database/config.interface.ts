@@ -6,11 +6,11 @@ export interface IDatabaseConfig {
 	type: EDatabaseType;
 	port: number;
 	databaseName: string;
-	isVerbose: boolean;
+	isVerbose?: boolean;
 	shouldSynchronize?: boolean;
-	connectionTimeoutMs: number;
-	idleTimeoutMs: number;
-	poolSize: number;
+	connectionTimeoutMs?: number;
+	idleTimeoutMs?: number;
+	poolSize?: number;
 	entities: MixedList<Function | string | EntitySchema>;
 	rotation?: IDatabaseConfigRotation;
 }
