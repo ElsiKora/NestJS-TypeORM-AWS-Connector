@@ -4,12 +4,12 @@ import { ParameterStoreConfigService } from "@elsikora/nestjs-aws-parameter-stor
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
 import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
 import { IAwsSecretsManagerItem } from "@shared/interface/aws/secrets-manager/item.interface";
-import {ITypeOrmAwsConnectorConfig} from "@shared/interface/typeorm-aws-connector/config.interface";
+import { ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector/config.interface";
 import TYPEORM_AWS_CONNECTOR_CONSTANT from "@shared/constant/typeorm-aws-connector/constant";
 
 @Injectable()
-export class TypeormAwsConnectorService {
-	private readonly logger = new Logger(TypeormAwsConnectorService.name);
+export class TypeOrmAwsConnectorService {
+	private readonly logger = new Logger(TypeOrmAwsConnectorService.name);
 
 	constructor(
 		private readonly configService: ConfigService,

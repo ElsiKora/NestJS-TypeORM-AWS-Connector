@@ -1,14 +1,10 @@
 import { Module, DynamicModule, Global, Provider } from "@nestjs/common";
 import { ScheduleModule } from "@nestjs/schedule";
-import {
-	ITypeOrmAwsConnectorModuleAsyncOptions
-} from "@shared/interface/typeorm-aws-connector/module-async-options.interface";
+import { ITypeOrmAwsConnectorModuleAsyncOptions } from "@shared/interface/typeorm-aws-connector/module-async-options.interface";
 import { TypeormAwsConnectorService } from "@modules/typeorm-aws-connector/typeorm-aws-connector.service";
 import { RotatorService } from "@modules/typeorm-aws-connector/rotator/rotator.service";
 import { createDatabaseConfigProvider, DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
-import {
-	ITypeOrmAwsConnectorModuleOptions
-} from "@shared/interface/typeorm-aws-connector/module-options.interface";
+import { ITypeOrmAwsConnectorModuleOptions } from "@shared/interface/typeorm-aws-connector/module-options.interface";
 
 @Global()
 @Module({})

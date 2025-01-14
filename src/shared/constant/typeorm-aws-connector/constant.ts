@@ -1,4 +1,4 @@
-import {ERelationLoadStrategy} from "@shared/enum/relation-load-strategy.enum";
+import { ERelationLoadStrategy } from "@shared/enum/relation-load-strategy.enum";
 
 const DB_CONNECTION_TIMEOUT: number = 30_000;
 const DB_IDLE_TIMEOUT: number = 30_000;

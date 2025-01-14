@@ -55,7 +55,7 @@ Example of both modules working together:
       }),
     }),
     // Then, configure Database module
-    DatabaseModule.registerAsync({
+     TypeOrmAwsConnectorModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async () => ({
@@ -100,12 +100,11 @@ npm install @elsikora/nestjs-typeorm-aws-connector
 ### Async Configuration
 
 ```typescript
-import { DatabaseModule } from '@elsikora/nestjs-typeorm-aws-connector';
-import { EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector/dist/shared/enum/typeorm-aws-connector/type.enum';
+import { TypeOrmAwsConnectorModule, EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector';
 
 @Module({
   imports: [
-    DatabaseModule.registerAsync({
+     TypeOrmAwsConnectorModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async () => ({
@@ -132,42 +131,42 @@ export class AppModule {}
 ### Static Configuration
 
 ```typescript
-import { DatabaseModule } from '@elsikora/nestjs-typeorm-aws-connector';
-import { EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector/dist/shared/enum/typeorm-aws-connector/type.enum';
+import {TypeOrmAwsConnectorModule, EDatabaseType} from '@elsikora/nestjs-typeorm-aws-connector';
 
 @Module({
-  imports: [
-    DatabaseModule.register({
-      connectionTimeoutMs: 30_000,
-      databaseName: "app",
-      entities: [Bank],
-      idleTimeoutMs: 30_000,
-      isVerbose: true,
-      poolSize: 10,
-      port: 5432,
-      rotation: {
-        intervalMs: 5000,
-        isEnabled: true,
-      },
-      shouldSynchronize: true,
-      type: EDatabaseType.POSTGRES,
-    }),
-  ]
+   imports: [
+      TypeOrmAwsConnectorModule.register({
+         connectionTimeoutMs: 30_000,
+         databaseName: "app",
+         entities: [Bank],
+         idleTimeoutMs: 30_000,
+         isVerbose: true,
+         poolSize: 10,
+         port: 5432,
+         rotation: {
+            intervalMs: 5000,
+            isEnabled: true,
+         },
+         shouldSynchronize: true,
+         type: EDatabaseType.POSTGRES,
+      }),
+   ]
 })
-export class AppModule {}
+export class AppModule {
+}
 ```
 
 ### Integration with TypeORM
 
 ```typescript
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TypeormAwsConnectorService } from '@elsikora/nestjs-typeorm-aws-connector';
+import { TypeOrmAwsConnectorService } from '@elsikora/nestjs-typeorm-aws-connector';
 
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
-      inject: [TypeormAwsConnectorService],
-      useFactory: async (databaseService: TypeormAwsConnectorService) => {
+      inject: [TypeOrmAwsConnectorService],
+      useFactory: async (databaseService: TypeOrmAwsConnectorService) => {
         const options = await databaseService.getTypeOrmOptions();
         return {
           ...options,

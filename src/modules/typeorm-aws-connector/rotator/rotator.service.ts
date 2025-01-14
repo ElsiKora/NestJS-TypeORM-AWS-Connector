@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { DataSource, EntitySubscriberInterface, DataSourceOptions } from "typeorm";
 import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
-import {ITypeOrmAwsConnectorConfig} from "@shared/interface/typeorm-aws-connector/config.interface";
+import { ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector/config.interface";
 import TYPEORM_AWS_CONNECTOR_CONSTANT from "@shared/constant/typeorm-aws-connector/constant";
 
 @Injectable()

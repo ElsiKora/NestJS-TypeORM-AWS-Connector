@@ -1,4 +1,4 @@
 export enum ERelationLoadStrategy {
-    JOIN = "join",
-    QUERY = "query",
+	JOIN = "join",
+	QUERY = "query",
 }
