@@ -4,5 +4,5 @@ export type IDatabaseConfigRotation =
 	  }
 	| {
 			isEnabled: true;
-			intervalMs: number;
+			intervalMs?: number;
 	  };

@@ -2,19 +2,20 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ParameterStoreConfigService } from "@elsikora/nestjs-aws-parameter-store-config";
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
-import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/database/database.provider";
-import { IDatabaseConfig } from "@shared/interface/database/config.interface";
+import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
 import { IAwsSecretsManagerItem } from "@shared/interface/aws/secrets-manager/item.interface";
+import {ITypeOrmAwsConnectorConfig} from "@shared/interface/typeorm-aws-connector/config.interface";
+import TYPEORM_AWS_CONNECTOR_CONSTANT from "@shared/constant/typeorm-aws-connector/constant";
 
 @Injectable()
-export class DatabaseService {
-	private readonly logger = new Logger(DatabaseService.name);
+export class TypeormAwsConnectorService {
+	private readonly logger = new Logger(TypeormAwsConnectorService.name);
 
 	constructor(
 		private readonly configService: ConfigService,
 		private readonly parameterStoreConfigService: ParameterStoreConfigService,
 		@Inject(DATABASE_CONFIG_PROVIDER)
-		private readonly databaseConfig: IDatabaseConfig,
+		private readonly databaseConfig: ITypeOrmAwsConnectorConfig,
 	) {}
 
 	async getCredentials(): Promise<IAwsSecretsManagerItem> {
@@ -24,8 +25,6 @@ export class DatabaseService {
 		const client = new SecretsManagerClient({ region });
 
 		const secretId = this.parameterStoreConfigService.get(`/${this.configService.get<string>("APPLICATION")}/elastic-beanstalk/${this.configService.get<string>("APPLICATION")}-reaper-api/aws-secrets-manager/database-credentials-secret-id`);
-
-		console.log("SECRETID", secretId, `/${this.configService.get<string>("APPLICATION")}/elastic-beanstalk/${this.configService.get<string>("APPLICATION")}-reaper-api/aws-secrets-manager/database-credentials-secret-id`);
 
 		const response = await client.send(
 			new GetSecretValueCommand({
@@ -51,12 +50,13 @@ export class DatabaseService {
 			username: credentials.username,
 			password: credentials.password,
 			database: this.databaseConfig.databaseName,
-			logging: this.databaseConfig.isVerbose || false,
-			synchronize: this.databaseConfig.shouldSynchronize || false,
+			relationLoadStrategy: this.databaseConfig.relationLoadStrategy || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_RELATION_LOAD_STRATEGY,
+			logging: this.databaseConfig.isVerbose || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_LOGGING,
+			synchronize: this.databaseConfig.shouldSynchronize || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_SYNCHRONIZE,
 			extra: {
-				connectionTimeoutMillis: this.databaseConfig.connectionTimeoutMs || 30000,
-				idleTimeoutMillis: this.databaseConfig.idleTimeoutMs || 30000,
-				max: this.databaseConfig.poolSize || 10,
+				connectionTimeoutMillis: this.databaseConfig.connectionTimeoutMs || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_CONNECTION_TIMEOUT,
+				idleTimeoutMillis: this.databaseConfig.idleTimeoutMs || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_IDLE_TIMEOUT,
+				max: this.databaseConfig.poolSize || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_POOL_SIZE,
 			},
 			entities: this.databaseConfig.entities,
 		};

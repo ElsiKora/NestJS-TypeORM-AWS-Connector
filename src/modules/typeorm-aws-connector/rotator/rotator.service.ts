@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { DataSource, EntitySubscriberInterface, DataSourceOptions } from "typeorm";
-import { IDatabaseConfig } from "@shared/interface/database/config.interface";
-import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/database/database.provider";
+import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
+import {ITypeOrmAwsConnectorConfig} from "@shared/interface/typeorm-aws-connector/config.interface";
+import TYPEORM_AWS_CONNECTOR_CONSTANT from "@shared/constant/typeorm-aws-connector/constant";
 
 @Injectable()
 export class RotatorService implements OnModuleInit {
@@ -11,13 +12,13 @@ export class RotatorService implements OnModuleInit {
 	constructor(
 		private readonly dataSource: DataSource,
 		@Inject(DATABASE_CONFIG_PROVIDER)
-		private readonly databaseConfig: IDatabaseConfig,
+		private readonly databaseConfig: ITypeOrmAwsConnectorConfig,
 		private readonly schedulerRegistry: SchedulerRegistry,
 	) {}
 
 	onModuleInit() {
 		if (this.databaseConfig.rotation?.isEnabled) {
-			const intervalMs = this.databaseConfig.rotation.intervalMs;
+			const intervalMs = this.databaseConfig.rotation.intervalMs || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_CONNECTION_ROTATION_INTERVAL;
 
 			const interval = setInterval(() => {
 				this.rotateDatabaseConnection();

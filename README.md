@@ -27,6 +27,51 @@
 	<img src="https://img.shields.io/badge/TypeORM-FE0902.svg?style=for-the-badge&logo=TypeORM&logoColor=white" alt="TypeORM">
 </p>
 
+## ⚠️ Important Prerequisites
+
+This module requires `@elsikora/nestjs-aws-parameter-store-config` to function properly. Before using this module, please:
+
+1. Install and configure `@elsikora/nestjs-aws-parameter-store-config`
+2. Familiarize yourself with its documentation and setup
+3. Ensure it's properly configured in your NestJS application
+
+Example of both modules working together:
+
+```typescript
+@Module({
+  imports: [
+    // First, configure Parameter Store
+    ParameterStoreConfigModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        application: config.get<string>("APPLICATION"),
+        config: {
+          region: config.get<string>("AWS_REGION"),
+        },
+        decryptParameters: true,
+        environment: config.get<string>("ENVIRONMENT"),
+        recursiveLoading: true,
+      }),
+    }),
+    // Then, configure Database module
+    DatabaseModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async () => ({
+        connectionTimeoutMs: 30_000,
+        databaseName: "app",
+        entities: [Bank],
+        // ... other options
+      }),
+    }),
+  ]
+})
+export class AppModule {}
+```
+
+For more information about the Parameter Store configuration, please refer to the [@elsikora/nestjs-aws-parameter-store-config documentation](https://github.com/ElsiKora/NestJS-AWS-Parameter-Store-Config).
+
 ## Overview
 
 NestJS-TypeORM-AWS-Connector is a powerful integration module that provides seamless database connectivity for NestJS applications using TypeORM with AWS infrastructure. It supports automatic connection management, connection pooling, and rotation features specifically designed for AWS environments. The module simplifies database configuration and management while providing robust options for customization and optimization.
@@ -56,7 +101,7 @@ npm install @elsikora/nestjs-typeorm-aws-connector
 
 ```typescript
 import { DatabaseModule } from '@elsikora/nestjs-typeorm-aws-connector';
-import { EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector/dist/shared/enum/database/type.enum';
+import { EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector/dist/shared/enum/typeorm-aws-connector/type.enum';
 
 @Module({
   imports: [
@@ -88,7 +133,7 @@ export class AppModule {}
 
 ```typescript
 import { DatabaseModule } from '@elsikora/nestjs-typeorm-aws-connector';
-import { EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector/dist/shared/enum/database/type.enum';
+import { EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector/dist/shared/enum/typeorm-aws-connector/type.enum';
 
 @Module({
   imports: [
@@ -116,13 +161,13 @@ export class AppModule {}
 
 ```typescript
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DatabaseService } from '@elsikora/nestjs-typeorm-aws-connector';
+import { TypeormAwsConnectorService } from '@elsikora/nestjs-typeorm-aws-connector';
 
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
-      inject: [DatabaseService],
-      useFactory: async (databaseService: DatabaseService) => {
+      inject: [TypeormAwsConnectorService],
+      useFactory: async (databaseService: TypeormAwsConnectorService) => {
         const options = await databaseService.getTypeOrmOptions();
         return {
           ...options,
@@ -136,19 +181,20 @@ export class AppModule {}
 
 ## Configuration Options
 
-| Option              | Type      | Required | Default | Description                                                    |
-|--------------------|-----------|----------|---------|----------------------------------------------------------------|
-| type               | EDatabaseType | Yes      | -       | Database type (POSTGRES, MYSQL, etc.)                          |
-| databaseName       | string    | Yes      | -       | Name of the database to connect to                             |
-| port               | number    | Yes      | -       | Database port number                                           |
-| entities           | Entity[]  | Yes      | -       | Array of entity classes to be loaded                           |
-| poolSize           | number    | Yes     | 10      | Maximum number of connections in the pool                      |
-| connectionTimeoutMs| number    | Yes     | 30000   | Connection timeout in milliseconds                             |
-| idleTimeoutMs      | number    | Yes     | 30000   | Idle connection timeout in milliseconds                        |
-| isVerbose          | boolean   | Yes     | false   | Enable verbose logging                                         |
-| shouldSynchronize  | boolean   | Yes     | false   | Automatically synchronize database schema                      |
-| rotation.isEnabled | boolean   | No       | false   | Enable connection rotation                                     |
-| rotation.intervalMs| number    | No       | 5000    | Connection rotation interval in milliseconds                   |
+| Option               | Type                  | Required | Default                     | Description                                  |
+|----------------------|-----------------------|----------|-----------------------------|----------------------------------------------|
+| type                 | EDatabaseType         | Yes      | -                           | Database type (POSTGRES, MYSQL, etc.)        |
+| databaseName         | string                | Yes      | -                           | Name of the database to connect to           |
+| port                 | number                | Yes      | -                           | Database port number                         |
+| entities             | Entity[]              | Yes      | -                           | Array of entity classes to be loaded         |
+| poolSize             | number                | false    | 10                          | Maximum number of connections in the pool    |
+| connectionTimeoutMs  | number                | false    | 30000                       | Connection timeout in milliseconds           |
+| idleTimeoutMs        | number                | false    | 30000                       | Idle connection timeout in milliseconds      |
+| isVerbose            | boolean               | false    | false                       | Enable verbose logging                       |
+| shouldSynchronize    | boolean               | false    | false                       | Automatically synchronize database schema    |
+| relationLoadStrategy | ERelationLoadStrategy | Yes      | ERelationLoadStrategy.QUERY | Relation load strategy (QUERY, JOIN)         |
+| rotation.isEnabled   | boolean               | No       | false                       | Enable connection rotation                   |
+| rotation.intervalMs  | number                | No       | 3600000                     | Connection rotation interval in milliseconds |
 
 ## Database Types
 
@@ -163,9 +209,9 @@ enum EDatabaseType {
 
 ## Services
 
-### DatabaseService
+### TypeormAwsConnectorService
 
-The `DatabaseService` provides methods for managing database connections and configurations:
+The `TypeormAwsConnectorService` provides methods for managing database connections and configurations:
 
 - `getTypeOrmOptions()`: Returns TypeORM configuration options
 - Other utility methods for connection management
