@@ -1,5 +1,12 @@
 # @elsikora/nestjs-aws-param-store-config
 
+## 1.0.1
+
+### Patch Changes
+
+- 93c9e46: Refactor database config and update README
+- 754eb36: Update package metadata and dependencies
+
 ## 1.2.5
 
 ### Patch Changes
