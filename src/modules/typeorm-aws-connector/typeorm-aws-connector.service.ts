@@ -61,7 +61,7 @@ export class TypeOrmAwsConnectorService {
 			entities: this.databaseConfig.entities,
 		};
 
-		this.logger.debug(`TypeORM options сформированы: ${JSON.stringify(options)}`);
+		this.logger.debug(`TypeORM options were successfully created`);
 
 		return options;
 	}
