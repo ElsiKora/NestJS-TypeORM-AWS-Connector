@@ -39,33 +39,33 @@ Example of both modules working together:
 
 ```typescript
 @Module({
-  imports: [
-    // First, configure Parameter Store
-    ParameterStoreConfigModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        application: config.get<string>("APPLICATION"),
-        config: {
-          region: config.get<string>("AWS_REGION"),
-        },
-        decryptParameters: true,
-        environment: config.get<string>("ENVIRONMENT"),
-        recursiveLoading: true,
-      }),
-    }),
-    // Then, configure Database module
-     TypeOrmAwsConnectorModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async () => ({
-        connectionTimeoutMs: 30_000,
-        databaseName: "app",
-        entities: [Bank],
-        // ... other options
-      }),
-    }),
-  ]
+	imports: [
+		// First, configure Parameter Store
+		ParameterStoreConfigModule.registerAsync({
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: (config: ConfigService) => ({
+				application: config.get<string>("APPLICATION"),
+				config: {
+					region: config.get<string>("AWS_REGION"),
+				},
+				decryptParameters: true,
+				environment: config.get<string>("ENVIRONMENT"),
+				recursiveLoading: true,
+			}),
+		}),
+		// Then, configure Database module
+		TypeOrmAwsConnectorModule.registerAsync({
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: async () => ({
+				connectionTimeoutMs: 30_000,
+				databaseName: "app",
+				entities: [Bank],
+				// ... other options
+			}),
+		}),
+	],
 })
 export class AppModule {}
 ```
@@ -78,16 +78,16 @@ NestJS-TypeORM-AWS-Connector is a powerful integration module that provides seam
 
 ## Features
 
-|    | Feature                | Description                                                                                                        |
-|----|------------------------|--------------------------------------------------------------------------------------------------------------------|
-| 🔄 | **Connection Rotation** | Automatic connection rotation to prevent stale connections and ensure optimal database performance                   |
-| 🏊 | **Connection Pooling**  | Configurable connection pool with customizable size and timeout settings                                            |
-| ⚡️ | **Performance**        | Optimized database connections with configurable timeouts and idle connection management                            |
-| 🔧 | **Easy Configuration** | Flexible configuration options through both static and async module registration                                     |
-| 🎯 | **Type Safety**        | Full TypeScript support with strong typing for all configuration options                                            |
-| 📊 | **Multiple Databases** | Support for different database types (PostgreSQL, MySQL, etc.) through EDatabaseType enum                           |
-| 🔍 | **Verbose Logging**    | Optional verbose mode for detailed logging of database operations                                                    |
-| 🔄 | **Auto-Sync Schema**   | Optional automatic schema synchronization with database                                                             |
+|     | Feature                 | Description                                                                                        |
+| --- | ----------------------- | -------------------------------------------------------------------------------------------------- |
+| 🔄  | **Connection Rotation** | Automatic connection rotation to prevent stale connections and ensure optimal database performance |
+| 🏊  | **Connection Pooling**  | Configurable connection pool with customizable size and timeout settings                           |
+| ⚡️ | **Performance**         | Optimized database connections with configurable timeouts and idle connection management           |
+| 🔧  | **Easy Configuration**  | Flexible configuration options through both static and async module registration                   |
+| 🎯  | **Type Safety**         | Full TypeScript support with strong typing for all configuration options                           |
+| 📊  | **Multiple Databases**  | Support for different database types (PostgreSQL, MySQL, etc.) through EDatabaseType enum          |
+| 🔍  | **Verbose Logging**     | Optional verbose mode for detailed logging of database operations                                  |
+| 🔄  | **Auto-Sync Schema**    | Optional automatic schema synchronization with database                                            |
 
 ## Installation
 
@@ -100,30 +100,30 @@ npm install @elsikora/nestjs-typeorm-aws-connector
 ### Async Configuration
 
 ```typescript
-import { TypeOrmAwsConnectorModule, EDatabaseType } from '@elsikora/nestjs-typeorm-aws-connector';
+import { TypeOrmAwsConnectorModule, EDatabaseType } from "@elsikora/nestjs-typeorm-aws-connector";
 
 @Module({
-  imports: [
-     TypeOrmAwsConnectorModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async () => ({
-        connectionTimeoutMs: 30_000,
-        databaseName: "app",
-        entities: [Bank],
-        idleTimeoutMs: 30_000,
-        isVerbose: true,
-        poolSize: 10,
-        port: 5432,
-        rotation: {
-          intervalMs: 5000,
-          isEnabled: true,
-        },
-        shouldSynchronize: true,
-        type: EDatabaseType.POSTGRES,
-      }),
-    }),
-  ]
+	imports: [
+		TypeOrmAwsConnectorModule.registerAsync({
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: async () => ({
+				connectionTimeoutMs: 30_000,
+				databaseName: "app",
+				entities: [Bank],
+				idleTimeoutMs: 30_000,
+				isVerbose: true,
+				poolSize: 10,
+				port: 5432,
+				rotation: {
+					intervalMs: 5000,
+					isEnabled: true,
+				},
+				shouldSynchronize: true,
+				type: EDatabaseType.POSTGRES,
+			}),
+		}),
+	],
 })
 export class AppModule {}
 ```
@@ -131,49 +131,48 @@ export class AppModule {}
 ### Static Configuration
 
 ```typescript
-import {TypeOrmAwsConnectorModule, EDatabaseType} from '@elsikora/nestjs-typeorm-aws-connector';
+import { TypeOrmAwsConnectorModule, EDatabaseType } from "@elsikora/nestjs-typeorm-aws-connector";
 
 @Module({
-   imports: [
-      TypeOrmAwsConnectorModule.register({
-         connectionTimeoutMs: 30_000,
-         databaseName: "app",
-         entities: [Bank],
-         idleTimeoutMs: 30_000,
-         isVerbose: true,
-         poolSize: 10,
-         port: 5432,
-         rotation: {
-            intervalMs: 5000,
-            isEnabled: true,
-         },
-         shouldSynchronize: true,
-         type: EDatabaseType.POSTGRES,
-      }),
-   ]
+	imports: [
+		TypeOrmAwsConnectorModule.register({
+			connectionTimeoutMs: 30_000,
+			databaseName: "app",
+			entities: [Bank],
+			idleTimeoutMs: 30_000,
+			isVerbose: true,
+			poolSize: 10,
+			port: 5432,
+			rotation: {
+				intervalMs: 5000,
+				isEnabled: true,
+			},
+			shouldSynchronize: true,
+			type: EDatabaseType.POSTGRES,
+		}),
+	],
 })
-export class AppModule {
-}
+export class AppModule {}
 ```
 
 ### Integration with TypeORM
 
 ```typescript
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { TypeOrmAwsConnectorService } from '@elsikora/nestjs-typeorm-aws-connector';
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
 
 @Module({
-  imports: [
-    TypeOrmModule.forRootAsync({
-      inject: [TypeOrmAwsConnectorService],
-      useFactory: async (databaseService: TypeOrmAwsConnectorService) => {
-        const options = await databaseService.getTypeOrmOptions();
-        return {
-          ...options,
-        };
-      },
-    }),
-  ]
+	imports: [
+		TypeOrmModule.forRootAsync({
+			inject: [TypeOrmAwsConnectorService],
+			useFactory: async (databaseService: TypeOrmAwsConnectorService) => {
+				const options = await databaseService.getTypeOrmOptions();
+				return {
+					...options,
+				};
+			},
+		}),
+	],
 })
 export class AppModule {}
 ```
@@ -181,7 +180,7 @@ export class AppModule {}
 ## Configuration Options
 
 | Option               | Type                  | Required | Default                     | Description                                  |
-|----------------------|-----------------------|----------|-----------------------------|----------------------------------------------|
+| -------------------- | --------------------- | -------- | --------------------------- | -------------------------------------------- |
 | type                 | EDatabaseType         | Yes      | -                           | Database type (POSTGRES, MYSQL, etc.)        |
 | databaseName         | string                | Yes      | -                           | Name of the database to connect to           |
 | port                 | number                | Yes      | -                           | Database port number                         |
@@ -201,8 +200,8 @@ The module supports multiple database types through the `EDatabaseType` enum:
 
 ```typescript
 enum EDatabaseType {
-  POSTGRES = 'postgres',
-  MYSQL = 'mysql',
+	POSTGRES = "postgres",
+	MYSQL = "mysql",
 }
 ```
 
@@ -227,16 +226,18 @@ The module includes built-in error handling for common database connection issue
 ## Best Practices
 
 1. **Connection Pooling**
-    - Set appropriate `poolSize` based on your application's needs
-    - Monitor pool usage in production
+
+   - Set appropriate `poolSize` based on your application's needs
+   - Monitor pool usage in production
 
 2. **Connection Rotation**
-    - Enable rotation for long-running applications
-    - Adjust `rotation.intervalMs` based on your workload
+
+   - Enable rotation for long-running applications
+   - Adjust `rotation.intervalMs` based on your workload
 
 3. **Timeouts**
-    - Set reasonable `connectionTimeoutMs` and `idleTimeoutMs`
-    - Consider your application's specific requirements
+   - Set reasonable `connectionTimeoutMs` and `idleTimeoutMs`
+   - Consider your application's specific requirements
 
 ## Contributing
 

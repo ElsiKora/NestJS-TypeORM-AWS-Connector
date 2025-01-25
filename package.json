@@ -1,95 +1,95 @@
 {
-  "name": "@elsikora/nestjs-typeorm-aws-connector",
-  "version": "1.2.1",
-  "description": "NestJS application configuration with AWS Parameter Store and TypeORM",
-  "author": "ElsiKora",
-  "license": "MIT",
-  "main": "dist/index.js",
-  "files": [
-    "dist/**/*",
-    "README.md",
-    "LICENSE"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git@github.com:ElsiKora/NestJS-AWS-TypeORM-Connector.git"
-  },
-  "bugs": {
-    "url": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector/issues"
-  },
-  "homepage": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector#readme",
-  "scripts": {
-    "build": "nest build && tsc-alias -p tsconfig.json",
-    "format": "prettier --check .",
-    "lint": "eslint ./src && prettier --check .",
-    "patch": "changeset",
-    "patch:release": "npx changeset version",
-    "prebuild": "rimraf dist",
-    "release": "npm install && npm run build && changeset publish",
-    "lint:fix": "eslint ./src --fix && prettier --write .",
-    "format:fix": "prettier --write .",
-    "lint:watch": "npx eslint-watch ./src/**/*.ts",
-    "lint:types": "tsc --noEmit",
-    "lint:test": "eslint \"{src,apps,libs,test}/**/*.spec.ts\"",
-    "lint:all": "npm run lint && npm run lint:types"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "devDependencies": {
-    "@changesets/cli": "^2.27.12",
-    "@elsikora/eslint-config": "^3.2.2",
-    "@elsikora/eslint-plugin-nestjs-typed": "^2.0.4",
-    "@eslint-react/eslint-plugin": "^1.24.1",
-    "@eslint/compat": "^1.2.5",
-    "@eslint/js": "^9.19.0",
-    "@nestjs/cli": "^11.0.2",
-    "@nestjs/common": "^11.0.5",
-    "@nestjs/core": "^11.0.5",
-    "@nestjs/platform-express": "^11.0.5",
-    "@nestjs/schematics": "^11.0.0",
-    "@stylistic/eslint-plugin": "^2.13.0",
-    "@types/eslint__js": "^8.42.3",
-    "@types/express": "^5.0.0",
-    "@types/node": "^20.14.8",
-    "@typescript-eslint/eslint-plugin": "^8.21.0",
-    "@typescript-eslint/parser": "^8.21.0",
-    "eslint-config-prettier": "^10.0.1",
-    "eslint-plugin-check-file": "^2.8.0",
-    "eslint-plugin-jsonc": "^2.19.1",
-    "eslint-plugin-n": "^17.15.1",
-    "eslint-plugin-ng-module-sort": "^1.3.1",
-    "eslint-plugin-package-json": "^0.21.1",
-    "eslint-plugin-perfectionist": "^4.7.0",
-    "eslint-plugin-prettier": "^5.2.3",
-    "eslint-plugin-regexp": "^2.7.0",
-    "eslint-plugin-sonarjs": "^3.0.1",
-    "eslint-plugin-tailwindcss": "^3.18.0",
-    "eslint-plugin-typeorm": "^0.0.19",
-    "eslint-plugin-typeorm-typescript": "^0.5.0",
-    "eslint-plugin-unicorn": "^56.0.1",
-    "eslint-plugin-yml": "^1.16.0",
-    "prettier": "^3.4.2",
-    "reflect-metadata": "^0.2.1",
-    "rimraf": "^5.0.5",
-    "rxjs": "^7.8.1",
-    "source-map-support": "^0.5.21",
-    "ts-loader": "^9.5.2",
-    "ts-node": "^10.9.2",
-    "tsc-alias": "^1.8.10",
-    "tsconfig-replace-paths": "^0.0.14",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.21.0"
-  },
-  "peerDependencies": {
-    "@aws-sdk/client-ssm": "^3.535.0",
-    "typeorm": "^0.3.20",
-    "@nestjs/common": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0"
-  },
-  "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.726.1",
-    "@elsikora/nestjs-aws-parameter-store-config": "^1.2.7",
-    "@nestjs/config": "^4.0.0",
-    "@nestjs/schedule": "^5.0.1"
-  }
+	"name": "@elsikora/nestjs-typeorm-aws-connector",
+	"version": "1.2.1",
+	"description": "NestJS application configuration with AWS Parameter Store and TypeORM",
+	"author": "ElsiKora",
+	"license": "MIT",
+	"main": "dist/index.js",
+	"files": [
+		"dist/**/*",
+		"README.md",
+		"LICENSE"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git@github.com:ElsiKora/NestJS-AWS-TypeORM-Connector.git"
+	},
+	"bugs": {
+		"url": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector/issues"
+	},
+	"homepage": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector#readme",
+	"scripts": {
+		"build": "nest build && tsc-alias -p tsconfig.json",
+		"format": "prettier --check .",
+		"lint": "eslint ./src && prettier --check .",
+		"patch": "changeset",
+		"patch:release": "npx changeset version",
+		"prebuild": "rimraf dist",
+		"release": "npm install && npm run build && changeset publish",
+		"lint:fix": "eslint ./src --fix && prettier --write .",
+		"format:fix": "prettier --write .",
+		"lint:watch": "npx eslint-watch ./src/**/*.ts",
+		"lint:types": "tsc --noEmit",
+		"lint:test": "eslint \"{src,apps,libs,test}/**/*.spec.ts\"",
+		"lint:all": "npm run lint && npm run lint:types"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"@changesets/cli": "^2.27.12",
+		"@elsikora/eslint-config": "^3.2.2",
+		"@elsikora/eslint-plugin-nestjs-typed": "^2.0.4",
+		"@eslint-react/eslint-plugin": "^1.24.1",
+		"@eslint/compat": "^1.2.5",
+		"@eslint/js": "^9.19.0",
+		"@nestjs/cli": "^11.0.2",
+		"@nestjs/common": "^11.0.5",
+		"@nestjs/core": "^11.0.5",
+		"@nestjs/platform-express": "^11.0.5",
+		"@nestjs/schematics": "^11.0.0",
+		"@stylistic/eslint-plugin": "^2.13.0",
+		"@types/eslint__js": "^8.42.3",
+		"@types/express": "^5.0.0",
+		"@types/node": "^20.14.8",
+		"@typescript-eslint/eslint-plugin": "^8.21.0",
+		"@typescript-eslint/parser": "^8.21.0",
+		"eslint-config-prettier": "^10.0.1",
+		"eslint-plugin-check-file": "^2.8.0",
+		"eslint-plugin-jsonc": "^2.19.1",
+		"eslint-plugin-n": "^17.15.1",
+		"eslint-plugin-ng-module-sort": "^1.3.1",
+		"eslint-plugin-package-json": "^0.21.1",
+		"eslint-plugin-perfectionist": "^4.7.0",
+		"eslint-plugin-prettier": "^5.2.3",
+		"eslint-plugin-regexp": "^2.7.0",
+		"eslint-plugin-sonarjs": "^3.0.1",
+		"eslint-plugin-tailwindcss": "^3.18.0",
+		"eslint-plugin-typeorm": "^0.0.19",
+		"eslint-plugin-typeorm-typescript": "^0.5.0",
+		"eslint-plugin-unicorn": "^56.0.1",
+		"eslint-plugin-yml": "^1.16.0",
+		"prettier": "^3.4.2",
+		"reflect-metadata": "^0.2.1",
+		"rimraf": "^5.0.5",
+		"rxjs": "^7.8.1",
+		"source-map-support": "^0.5.21",
+		"ts-loader": "^9.5.2",
+		"ts-node": "^10.9.2",
+		"tsc-alias": "^1.8.10",
+		"tsconfig-replace-paths": "^0.0.14",
+		"typescript": "^5.7.3",
+		"typescript-eslint": "^8.21.0"
+	},
+	"peerDependencies": {
+		"@aws-sdk/client-ssm": "^3.535.0",
+		"typeorm": "^0.3.20",
+		"@nestjs/common": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0"
+	},
+	"dependencies": {
+		"@aws-sdk/client-secrets-manager": "^3.726.1",
+		"@elsikora/nestjs-aws-parameter-store-config": "^1.2.7",
+		"@nestjs/config": "^4.0.0",
+		"@nestjs/schedule": "^5.0.1"
+	}
 }
