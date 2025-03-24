@@ -1,4 +1,4 @@
 export interface IAwsSecretsManagerItem {
-	username: string;
 	password: string;
+	username: string;
 }

@@ -1,29 +1,30 @@
-import { ERelationLoadStrategy } from "@shared/enum/relation-load-strategy.enum";
+import { ERelationLoadStrategy } from "@shared/enum";
 
-const DB_CONNECTION_TIMEOUT: number = 30_000;
-const DB_IDLE_TIMEOUT: number = 30_000;
-const DB_POOL_SIZE: number = 10;
-const DB_RELATION_LOAD_STRATEGY: ERelationLoadStrategy = ERelationLoadStrategy.QUERY;
-const DB_SYNCHRONIZE: boolean = false;
-const DB_LOGGING: boolean = false;
-const DB_CONNECTION_ROTATION_INTERVAL: number = 1000 * 60 * 60;
+const DATABASE_CONNECTION_TIMEOUT: number = 30_000;
+const DATABASE_IDLE_TIMEOUT: number = 30_000;
+const DATABASE_POOL_SIZE: number = 10;
+const DATABASE_RELATION_LOAD_STRATEGY: ERelationLoadStrategy = ERelationLoadStrategy.QUERY;
+const IS_DATABASE_SYNCHRONIZATION_ENABLED: boolean = false;
+const IS_DATABASE_LOGGING_ENABLED: boolean = false;
+// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
+const DATABASE_CONNECTION_ROTATION_INTERVAL: number = 1000 * 60 * 60;
 
 const TYPEORM_AWS_CONNECTOR_CONSTANT: {
-	readonly DB_CONNECTION_ROTATION_INTERVAL: number;
-	readonly DB_CONNECTION_TIMEOUT: number;
-	readonly DB_IDLE_TIMEOUT: number;
-	readonly DB_LOGGING: boolean;
-	readonly DB_POOL_SIZE: number;
-	readonly DB_RELATION_LOAD_STRATEGY: ERelationLoadStrategy;
-	readonly DB_SYNCHRONIZE: boolean;
+	readonly DATABASE_CONNECTION_ROTATION_INTERVAL: number;
+	readonly DATABASE_CONNECTION_TIMEOUT: number;
+	readonly DATABASE_IDLE_TIMEOUT: number;
+	readonly DATABASE_POOL_SIZE: number;
+	readonly DATABASE_RELATION_LOAD_STRATEGY: ERelationLoadStrategy;
+	readonly IS_DATABASE_LOGGING_ENABLED: boolean;
+	readonly IS_DATABASE_SYNCHRONIZATION_ENABLED: boolean;
 } = {
-	DB_CONNECTION_ROTATION_INTERVAL,
-	DB_CONNECTION_TIMEOUT,
-	DB_IDLE_TIMEOUT,
-	DB_LOGGING,
-	DB_POOL_SIZE,
-	DB_RELATION_LOAD_STRATEGY,
-	DB_SYNCHRONIZE,
+	DATABASE_CONNECTION_ROTATION_INTERVAL,
+	DATABASE_CONNECTION_TIMEOUT,
+	DATABASE_IDLE_TIMEOUT,
+	DATABASE_POOL_SIZE,
+	DATABASE_RELATION_LOAD_STRATEGY,
+	IS_DATABASE_LOGGING_ENABLED,
+	IS_DATABASE_SYNCHRONIZATION_ENABLED,
 } as const;
 
 export default TYPEORM_AWS_CONNECTOR_CONSTANT;

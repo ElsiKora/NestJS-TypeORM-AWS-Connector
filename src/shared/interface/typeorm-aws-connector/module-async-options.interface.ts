@@ -1,8 +1,7 @@
-import type { ITypeOrmAwsConnectorModuleOptions } from "@shared/interface/typeorm-aws-connector/module-options.interface";
+import type { TTypeOrmAwsConnectorModuleOptions } from "@shared/type/typeorm-aws-connector";
 
 export interface ITypeOrmAwsConnectorModuleAsyncOptions {
-	useFactory: (...arguments_: Array<any>) => Promise<ITypeOrmAwsConnectorModuleOptions> | ITypeOrmAwsConnectorModuleOptions;
-	inject?: Array<any>;
 	imports?: Array<any>;
-	enableRotation?: boolean;
+	inject?: Array<any>;
+	useFactory: (...arguments_: Array<any>) => Promise<TTypeOrmAwsConnectorModuleOptions> | TTypeOrmAwsConnectorModuleOptions;
 }

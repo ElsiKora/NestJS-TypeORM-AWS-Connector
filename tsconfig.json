@@ -1,27 +1,33 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
-		"declaration": true,
-		"removeComments": false,
-		"emitDecoratorMetadata": true,
-		"experimentalDecorators": true,
 		"allowSyntheticDefaultImports": true,
-		"target": "ES2021",
-		"sourceMap": true,
-		"outDir": "./dist",
-		"baseUrl": "./",
-		"incremental": true,
-		"skipLibCheck": true,
-		"strictNullChecks": false,
-		"noImplicitAny": false,
-		"strictBindCallApply": false,
-		"forceConsistentCasingInFileNames": false,
+		"baseUrl": "./src",
+		"declaration": true,
+		"emitDeclarationOnly": false,
+		"emitDecoratorMetadata": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
 		"noFallthroughCasesInSwitch": false,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUncheckedIndexedAccess": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"outDir": "./dist",
 		"paths": {
-			"@/*": ["src/*"],
-			"@shared/*": ["src/shared/*"],
-			"@common/*": ["src/common/*"],
-			"@modules/*": ["src/modules/*"]
-		}
-	}
+			"@modules/*": ["modules/*"],
+			"@shared/*": ["shared/*"],
+			"typeorm/*": ["./node_modules/typeorm/*"]
+		},
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"target": "ESNext"
+	},
+	"exclude": ["node_modules", "dist"],
+	"include": ["src/**/*.ts", "src/**/*.tsx"]
 }

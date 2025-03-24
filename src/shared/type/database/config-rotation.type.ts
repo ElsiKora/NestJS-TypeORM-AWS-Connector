@@ -1,8 +1,8 @@
-export type IDatabaseConfigRotation =
+export type TDatabaseConfigRotation =
 	| {
-			isEnabled?: false;
+			intervalMs?: number;
+			isEnabled: true;
 	  }
 	| {
-			isEnabled: true;
-			intervalMs?: number;
+			isEnabled?: false;
 	  };

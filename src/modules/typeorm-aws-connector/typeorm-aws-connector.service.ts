@@ -1,15 +1,17 @@
+import type { ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector";
+
+import { GetSecretValueCommand, GetSecretValueCommandOutput, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { EService, ParameterStoreConfigService } from "@elsikora/nestjs-aws-parameter-store-config";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { ParameterStoreConfigService } from "@elsikora/nestjs-aws-parameter-store-config";
-import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
-import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector/database.provider";
-import { IAwsSecretsManagerItem } from "@shared/interface/aws/secrets-manager/item.interface";
-import { ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector/config.interface";
-import TYPEORM_AWS_CONNECTOR_CONSTANT from "@shared/constant/typeorm-aws-connector/constant";
+import { TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
+import { IAwsSecretsManagerItem } from "@shared/interface/aws/secrets-manager";
+import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector";
+import { DataSourceOptions } from "typeorm";
 
 @Injectable()
 export class TypeOrmAwsConnectorService {
-	private readonly logger = new Logger(TypeOrmAwsConnectorService.name);
+	private readonly LOGGER: Logger = new Logger(TypeOrmAwsConnectorService.name);
 
 	constructor(
 		private readonly configService: ConfigService,
@@ -19,49 +21,60 @@ export class TypeOrmAwsConnectorService {
 	) {}
 
 	async getCredentials(): Promise<IAwsSecretsManagerItem> {
-		this.logger.debug("Asking credentials from AWS Secrets Manager...");
+		this.LOGGER.debug("Asking credentials from AWS Secrets Manager...");
 
-		const region = this.configService.get<string>("AWS_REGION");
-		const client = new SecretsManagerClient({ region });
+		const region: string | undefined = this.configService.get<string>("AWS_REGION");
+		const client: SecretsManagerClient = new SecretsManagerClient({ region });
 
-		const secretId = this.parameterStoreConfigService.get(`/${this.configService.get<string>("APPLICATION")}/elastic-beanstalk/${this.configService.get<string>("APPLICATION")}-reaper-api/aws-secrets-manager/database-credentials-secret-id`);
+		const secretID: null | string = this.parameterStoreConfigService.get({ path: this.databaseConfig.secretID?.path ?? ["database-credentials-secret-id"], service: this.databaseConfig.secretID?.service ?? EService.AWS_SECRETS_MANAGER });
 
-		const response = await client.send(
+		if (!secretID) {
+			throw new Error("Secret ID was not found in the AWS Parameter Store");
+		}
+
+		const response: GetSecretValueCommandOutput = await client.send(
 			new GetSecretValueCommand({
-				SecretId: secretId,
+				SecretId: secretID,
 				VersionStage: "AWSCURRENT",
 			}),
 		);
 
-		this.logger.debug("Secrets was successfully loaded");
+		this.LOGGER.debug("Secrets was successfully loaded");
 
 		return JSON.parse(response.SecretString ?? "{}") as IAwsSecretsManagerItem;
 	}
 
-	async getTypeOrmOptions() {
-		const credentials = await this.getCredentials();
+	async getTypeOrmOptions(): Promise<DataSourceOptions> {
+		const credentials: IAwsSecretsManagerItem = await this.getCredentials();
 
-		const host = this.parameterStoreConfigService.get(`/${this.configService.get<string>("APPLICATION")}/elastic-beanstalk/${this.configService.get<string>("APPLICATION")}-reaper-api/aws-rds/host`);
+		const host: null | string = this.parameterStoreConfigService.get({ path: this.databaseConfig.host?.path ?? ["host"], service: this.databaseConfig.host?.service ?? EService.AWS_RDS });
 
-		const options = {
-			type: this.databaseConfig.type as any,
-			host,
-			port: this.databaseConfig.port,
-			username: credentials.username,
-			password: credentials.password,
+		if (!host) {
+			throw new Error("Host was not found in the AWS Parameter Store");
+		}
+
+		const options: DataSourceOptions = {
 			database: this.databaseConfig.databaseName,
-			relationLoadStrategy: this.databaseConfig.relationLoadStrategy || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_RELATION_LOAD_STRATEGY,
-			logging: this.databaseConfig.isVerbose || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_LOGGING,
-			synchronize: this.databaseConfig.shouldSynchronize || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_SYNCHRONIZE,
-			extra: {
-				connectionTimeoutMillis: this.databaseConfig.connectionTimeoutMs || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_CONNECTION_TIMEOUT,
-				idleTimeoutMillis: this.databaseConfig.idleTimeoutMs || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_IDLE_TIMEOUT,
-				max: this.databaseConfig.poolSize || TYPEORM_AWS_CONNECTOR_CONSTANT.DB_POOL_SIZE,
-			},
 			entities: this.databaseConfig.entities,
+			extra: {
+				connectionTimeoutMillis: this.databaseConfig.connectionTimeoutMs ?? TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_CONNECTION_TIMEOUT,
+				idleTimeoutMillis: this.databaseConfig.idleTimeoutMs ?? TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_IDLE_TIMEOUT,
+				max: this.databaseConfig.poolSize ?? TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_POOL_SIZE,
+			},
+			host,
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			logging: this.databaseConfig.isVerbose ?? TYPEORM_AWS_CONNECTOR_CONSTANT.IS_DATABASE_LOGGING_ENABLED,
+			password: credentials.password,
+			port: this.databaseConfig.port,
+			relationLoadStrategy: this.databaseConfig.relationLoadStrategy ?? TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_RELATION_LOAD_STRATEGY,
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			synchronize: this.databaseConfig.shouldSynchronize ?? TYPEORM_AWS_CONNECTOR_CONSTANT.IS_DATABASE_SYNCHRONIZATION_ENABLED,
+			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
+			type: this.databaseConfig.type as any,
+			username: credentials.username,
 		};
 
-		this.logger.debug(`TypeORM options were successfully created`);
+		this.LOGGER.debug(`TypeORM options were successfully created`);
 
 		return options;
 	}

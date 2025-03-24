@@ -1,3 +1,3 @@
-export * from "./typeorm-aws-connector.module";
-export * from "./typeorm-aws-connector.service";
-export * from "./rotator/rotator.service";
+export * from "./rotator";
+export { TypeOrmAwsConnectorModule } from "./typeorm-aws-connector.module";
+export { TypeOrmAwsConnectorService } from "./typeorm-aws-connector.service";
