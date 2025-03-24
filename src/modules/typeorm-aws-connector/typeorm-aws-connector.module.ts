@@ -11,6 +11,7 @@ import { TypeOrmAwsConnectorService } from "./typeorm-aws-connector.service";
 @Module({})
 export class TypeOrmAwsConnectorModule {
 	static register(config: TTypeOrmAwsConnectorModuleOptions): DynamicModule {
+		// TypeOrmAwsConnectorService should come first to ensure it's available for injection
 		const providers: Array<Provider> = [
 			{
 				provide: DATABASE_CONFIG_PROVIDER,
@@ -24,10 +25,8 @@ export class TypeOrmAwsConnectorModule {
 
 		if (isRotationEnabled) {
 			imports.push(ScheduleModule.forRoot());
-			providers.push({
-				provide: RotatorService,
-				useClass: RotatorService,
-			});
+			// Make sure RotatorService is added after TypeOrmAwsConnectorService
+			providers.push(RotatorService);
 		}
 
 		return {
@@ -39,6 +38,7 @@ export class TypeOrmAwsConnectorModule {
 	}
 
 	static async registerAsync(options: ITypeOrmAwsConnectorModuleAsyncOptions): Promise<DynamicModule> {
+		// Make sure order of providers allows proper dependency injection
 		const providers: Array<Provider> = [createDatabaseConfigProvider(options), TypeOrmAwsConnectorService];
 
 		// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
@@ -50,6 +50,7 @@ export class TypeOrmAwsConnectorModule {
 
 		if (isRotationEnabled) {
 			imports.push(ScheduleModule.forRoot());
+			// Add RotatorService last to ensure its dependencies are available
 			providers.push(RotatorService);
 		}
 
