@@ -26,7 +26,7 @@
 	],
 	"scripts": {
 		"prebuild": "rimraf dist",
-		"build": "nest build && tsc-alias -p tsconfig.json",
+		"build": "npm run prebuild && rollup -c",
 		"commit": "cz",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
@@ -38,8 +38,6 @@
 		"lint:types": "tsc --noEmit",
 		"lint:types:fix": "tsc --noEmit --skipLibCheck",
 		"lint:watch": "npx eslint-watch ./",
-		"patch": "changeset",
-		"patch:release": "npx changeset version",
 		"prepare": "husky",
 		"release": "semantic-release"
 	},
