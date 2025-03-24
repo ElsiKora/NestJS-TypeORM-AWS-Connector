@@ -1,6 +1,6 @@
 import typescript from "@rollup/plugin-typescript";
 import generatePackageJson from "rollup-plugin-generate-package-json";
-const external = ["@aws-sdk/client-ssm", "@aws-sdk/client-secrets-manager", "@nestjs/config", "@nestjs/schedule", "typeorm", "@nestjs/common"];
+const external = ["@elsikora/nestjs-aws-parameter-store-config", "@aws-sdk/client-ssm", "@aws-sdk/client-secrets-manager", "@nestjs/config", "@nestjs/schedule", "typeorm", "@nestjs/common"];
 import resolve from "@rollup/plugin-node-resolve";
 import dtsPathAlias from "rollup-plugin-dts-path-alias";
 
