@@ -1,11 +1,12 @@
 import type { ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector";
 
-import { TypeOrmAwsConnectorService } from "@modules/typeorm-aws-connector";
 import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
 import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector";
 import { DataSource, DataSourceOptions, EntitySubscriberInterface, QueryRunner } from "typeorm";
+
+import { TypeOrmAwsConnectorService } from "../typeorm-aws-connector.service";
 
 @Injectable()
 export class RotatorService implements OnModuleInit {
