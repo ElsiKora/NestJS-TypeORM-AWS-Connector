@@ -28,7 +28,7 @@ export class TypeOrmAwsConnectorModule {
 		};
 	}
 
-	static registerAsync(options: ITypeOrmAwsConnectorModuleAsyncOptions): DynamicModule {
+	static registerAsync<TFactoryArguments extends Array<unknown> = Array<unknown>>(options: ITypeOrmAwsConnectorModuleAsyncOptions<TFactoryArguments>): DynamicModule {
 		const providers: Array<Provider> = [createDatabaseConfigProvider(options), TypeOrmAwsConnectorService, RotatorService];
 
 		return {

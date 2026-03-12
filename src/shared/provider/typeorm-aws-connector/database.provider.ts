@@ -7,7 +7,7 @@ export const DATABASE_CONFIG_PROVIDER: string = "DATABASE_CONFIG_PROVIDER";
  * @param {ITypeOrmAwsConnectorModuleAsyncOptions} options - The options for the async module.
  * @returns {Provider} - The created database config provider.
  */
-export function createDatabaseConfigProvider(options: ITypeOrmAwsConnectorModuleAsyncOptions): Provider {
+export function createDatabaseConfigProvider<TFactoryArguments extends Array<unknown> = Array<unknown>>(options: ITypeOrmAwsConnectorModuleAsyncOptions<TFactoryArguments>): Provider {
 	return {
 		inject: options.inject ?? [],
 		provide: DATABASE_CONFIG_PROVIDER,
