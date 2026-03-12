@@ -48,7 +48,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-secrets-manager": "^3.1007.0",
-		"@elsikora/nestjs-aws-parameter-store-config": "^2.0.1",
+		"@elsikora/nestjs-aws-parameter-store-config": "^2.0.2",
 		"@nestjs/config": "^4.0.3",
 		"@nestjs/schedule": "^6.1.1"
 	},
