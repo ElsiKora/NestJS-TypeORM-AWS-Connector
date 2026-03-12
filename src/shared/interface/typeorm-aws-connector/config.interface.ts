@@ -1,27 +1,27 @@
-import type { EService } from "@elsikora/nestjs-aws-parameter-store-config";
 import type { EDatabaseType, ERelationLoadStrategy } from "@shared/enum";
 import type { TDatabaseConfigRotation } from "@shared/type/database";
 import type { EntitySchema, MixedList } from "typeorm";
 
+import type { ITypeOrmAwsConnectorSsmLookupDefaults } from "./ssm-lookup-defaults.interface";
+import type { ITypeOrmAwsConnectorSsmLookups } from "./ssm-lookups.interface";
+
 export interface ITypeOrmAwsConnectorConfig {
 	connectionTimeoutMs?: number;
-	databaseName: string;
+	databaseName?: string;
 	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 	entities: MixedList<EntitySchema | Function | string>;
-	host?: {
-		path?: Array<string>;
-		service?: EService;
-	};
+	host?: string;
 	idleTimeoutMs?: number;
 	isVerbose?: boolean;
+	password?: string;
 	poolSize?: number;
-	port: number;
+	port?: number;
 	relationLoadStrategy?: ERelationLoadStrategy;
 	rotation?: TDatabaseConfigRotation;
-	secretID?: {
-		path?: Array<string>;
-		service?: EService;
-	};
+	secretId?: string;
 	shouldSynchronize?: boolean;
-	type: EDatabaseType;
+	ssmLookupDefaults?: ITypeOrmAwsConnectorSsmLookupDefaults;
+	ssmLookups?: ITypeOrmAwsConnectorSsmLookups;
+	type?: EDatabaseType;
+	username?: string;
 }
