@@ -1,9 +1,6 @@
-import type { ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector";
-
-import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
-import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector";
 import { DataSource, DataSourceOptions, EntitySubscriberInterface, QueryRunner } from "typeorm";
 
 import { TypeOrmAwsConnectorService } from "../typeorm-aws-connector.service";
@@ -16,39 +13,43 @@ export class RotatorService implements OnModuleInit {
 
 	private readonly LOGGER: Logger = new Logger(RotatorService.name);
 
-	// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
 	private readonly MAX_CONSECUTIVE_FAILURES: number = 3;
 
 	constructor(
-		private readonly dataSource: DataSource,
-		@Inject(DATABASE_CONFIG_PROVIDER)
-		private readonly databaseConfig: ITypeOrmAwsConnectorConfig,
+		@Optional()
+		private readonly dataSource: DataSource | undefined,
 		private readonly schedulerRegistry: SchedulerRegistry,
 		private readonly connectorService: TypeOrmAwsConnectorService,
 	) {}
 
 	onModuleInit(): void {
-		if (this.databaseConfig.rotation?.isEnabled) {
-			const intervalMs: number = this.databaseConfig.rotation.intervalMs ?? TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_CONNECTION_ROTATION_INTERVAL;
+		const rotationConfig: { intervalMs: number; isEnabled: boolean } = this.connectorService.getRotationConfig();
 
-			const interval: any = setInterval(() => {
-				void this.safeRotateDatabaseConnection();
-			}, intervalMs);
-
-			this.schedulerRegistry.addInterval("db-rotation", interval);
-			this.LOGGER.log(`DB credentials rotation interval started: ${String(intervalMs)} ms`);
+		if (!rotationConfig.isEnabled) {
+			return;
 		}
+
+		this.getRequiredDataSource();
+
+		const interval: ReturnType<typeof setInterval> = setInterval(() => {
+			void this.safeRotateDatabaseConnection();
+		}, rotationConfig.intervalMs);
+
+		this.schedulerRegistry.addInterval(TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_ROTATION_INTERVAL_NAME, interval);
+		this.LOGGER.log(`DB credentials rotation interval started: ${String(rotationConfig.intervalMs)} ms`);
 	}
 
 	async rotateDatabaseConnection(): Promise<void> {
 		this.LOGGER.log("Launching DB credentials rotation interval...");
 
+		const dataSource: DataSource = this.getRequiredDataSource();
+
 		// First verify the current connection is actually healthy
-		await this.validateConnectionHealth();
+		await this.validateConnectionHealth(dataSource);
 
 		// Backup existing configuration
-		const currentOptions: DataSourceOptions = this.dataSource.options;
-		const subscribers: Array<EntitySubscriberInterface> = [...this.dataSource.subscribers];
+		const currentOptions: DataSourceOptions = dataSource.options;
+		const subscribers: Array<EntitySubscriberInterface> = [...dataSource.subscribers];
 
 		// Get fresh credentials from AWS
 		const freshOptions: DataSourceOptions = await this.connectorService.getTypeOrmOptions();
@@ -71,8 +72,8 @@ export class RotatorService implements OnModuleInit {
 		};
 
 		// Destroy old connection only if initialized
-		if (this.dataSource.isInitialized) {
-			await this.dataSource.destroy();
+		if (dataSource.isInitialized) {
+			await dataSource.destroy();
 		}
 
 		// Create and initialize a new data source with fresh credentials
@@ -88,9 +89,8 @@ export class RotatorService implements OnModuleInit {
 		}
 
 		// Update the existing data source with new connection
-		this.dataSource.setOptions(mergedOptions);
-		// eslint-disable-next-line @elsikora/typescript/no-unsafe-member-access
-		(this.dataSource as any).driver = newDataSource.driver;
+		dataSource.setOptions(mergedOptions);
+		this.replaceDataSourceDriver(dataSource, newDataSource);
 
 		this.LOGGER.log("Rotation completed successfully!");
 	}
@@ -98,13 +98,14 @@ export class RotatorService implements OnModuleInit {
 	private async attemptEmergencyRecovery(): Promise<void> {
 		try {
 			this.LOGGER.log("Attempting emergency database connection recovery...");
+			const dataSource: DataSource = this.getRequiredDataSource();
 
 			// Get fresh credentials and connection options from AWS
 			const freshOptions: DataSourceOptions = await this.connectorService.getTypeOrmOptions();
 
 			// If the data source is still initialized, destroy it first
-			if (this.dataSource.isInitialized) {
-				await this.dataSource.destroy();
+			if (dataSource.isInitialized) {
+				await dataSource.destroy();
 			}
 
 			// Create a completely new data source with fresh options
@@ -116,16 +117,15 @@ export class RotatorService implements OnModuleInit {
 			await recoveryDataSource.initialize();
 
 			// Transfer subscribers
-			const subscribers: Array<EntitySubscriberInterface> = [...this.dataSource.subscribers];
+			const subscribers: Array<EntitySubscriberInterface> = [...dataSource.subscribers];
 
 			for (const subscriber of subscribers) {
 				recoveryDataSource.subscribers.push(subscriber);
 			}
 
 			// Replace the driver and connection objects
-			this.dataSource.setOptions(recoveryDataSource.options);
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-member-access
-			(this.dataSource as any).driver = recoveryDataSource.driver;
+			dataSource.setOptions(recoveryDataSource.options);
+			this.replaceDataSourceDriver(dataSource, recoveryDataSource);
 
 			// Reset failure counter after successful recovery
 			this.consecutiveFailures = 0;
@@ -133,6 +133,20 @@ export class RotatorService implements OnModuleInit {
 		} catch (recoveryError) {
 			this.LOGGER.error(`Emergency recovery failed: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`);
 		}
+	}
+
+	private getRequiredDataSource(): DataSource {
+		if (!this.dataSource) {
+			throw new Error("Database rotation is enabled but TypeORM DataSource provider is not available.");
+		}
+
+		return this.dataSource;
+	}
+
+	private replaceDataSourceDriver(dataSource: DataSource, nextDataSource: DataSource): void {
+		const mutableDataSource: { driver: DataSource["driver"] } & DataSource = dataSource;
+
+		mutableDataSource.driver = nextDataSource.driver;
 	}
 
 	private async safeRotateDatabaseConnection(): Promise<void> {
@@ -160,8 +174,8 @@ export class RotatorService implements OnModuleInit {
 		}
 	}
 
-	private async validateConnectionHealth(): Promise<void> {
-		if (!this.dataSource.isInitialized) {
+	private async validateConnectionHealth(dataSource: DataSource): Promise<void> {
+		if (!dataSource.isInitialized) {
 			this.LOGGER.warn("Current data source is not initialized, no health check needed");
 
 			return;
@@ -169,7 +183,7 @@ export class RotatorService implements OnModuleInit {
 
 		try {
 			// Test the current connection with a simple query
-			const queryRunner: QueryRunner = this.dataSource.createQueryRunner();
+			const queryRunner: QueryRunner = dataSource.createQueryRunner();
 			await queryRunner.query("SELECT 1");
 			await queryRunner.release();
 			this.LOGGER.debug("Current connection is healthy");
