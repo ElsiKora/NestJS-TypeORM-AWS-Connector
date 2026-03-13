@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.3.3...v1.3.4) (2026-03-13)
+
+
+### Bug Fixes
+
+* **typeorm-aws-connector:** add explicit inject decorator for datasource dependency ([7077270](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/7077270e97fdddc1738051b83852d439f702a2dd))
+
 ## [1.3.3](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.3.2...v1.3.3) (2026-03-12)
 
 ## [1.3.2](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.3.1...v1.3.2) (2026-03-12)
