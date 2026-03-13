@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
 import { DataSource, DataSourceOptions, EntitySubscriberInterface, QueryRunner } from "typeorm";
@@ -16,6 +16,7 @@ export class RotatorService implements OnModuleInit {
 	private readonly MAX_CONSECUTIVE_FAILURES: number = 3;
 
 	constructor(
+		@Inject(DataSource)
 		@Optional()
 		private readonly dataSource: DataSource | undefined,
 		private readonly schedulerRegistry: SchedulerRegistry,
