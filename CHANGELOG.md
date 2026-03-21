@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.3.4...v1.4.0) (2026-03-21)
+
+
+### Features
+
+* **typeorm-aws-connector:** add support for multiple database modules with datasourcetoken option ([cfc28bb](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/cfc28bbb62349662bdc92ea751a46b741f74dbd9))
+
 ## [1.3.4](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.3.3...v1.3.4) (2026-03-13)
 
 
