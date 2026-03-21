@@ -39,7 +39,8 @@
 		"lint:types:fix": "tsc --noEmit --skipLibCheck",
 		"lint:watch": "npx eslint-watch ./",
 		"prepare": "husky",
-		"release": "semantic-release"
+		"release": "semantic-release",
+		"test": "npm run build && node --test test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
 	},
 	"config": {
 		"commitizen": {

@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
-import { TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
 import { DataSource, DataSourceOptions, EntitySubscriberInterface, QueryRunner } from "typeorm";
 
 import { TypeOrmAwsConnectorService } from "../typeorm-aws-connector.service";
@@ -11,17 +10,18 @@ export class RotatorService implements OnModuleInit {
 
 	private isRotationInProgress: boolean = false;
 
-	private readonly LOGGER: Logger = new Logger(RotatorService.name);
+	private readonly LOGGER: Logger;
 
 	private readonly MAX_CONSECUTIVE_FAILURES: number = 3;
 
 	constructor(
-		@Inject(DataSource)
-		@Optional()
 		private readonly dataSource: DataSource | undefined,
 		private readonly schedulerRegistry: SchedulerRegistry,
 		private readonly connectorService: TypeOrmAwsConnectorService,
-	) {}
+		private readonly rotationIntervalName: string,
+	) {
+		this.LOGGER = new Logger(`${RotatorService.name}:${this.rotationIntervalName}`);
+	}
 
 	onModuleInit(): void {
 		const rotationConfig: { intervalMs: number; isEnabled: boolean } = this.connectorService.getRotationConfig();
@@ -36,7 +36,7 @@ export class RotatorService implements OnModuleInit {
 			void this.safeRotateDatabaseConnection();
 		}, rotationConfig.intervalMs);
 
-		this.schedulerRegistry.addInterval(TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_ROTATION_INTERVAL_NAME, interval);
+		this.schedulerRegistry.addInterval(this.rotationIntervalName, interval);
 		this.LOGGER.log(`DB credentials rotation interval started: ${String(rotationConfig.intervalMs)} ms`);
 	}
 

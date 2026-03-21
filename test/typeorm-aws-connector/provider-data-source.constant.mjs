@@ -1,0 +1,3 @@
+const PROVIDER_DATA_SOURCE = {};
+
+export { PROVIDER_DATA_SOURCE };

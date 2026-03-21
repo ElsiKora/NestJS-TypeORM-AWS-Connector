@@ -362,6 +362,27 @@ TypeOrmAwsConnectorModule.registerAsync({
 
 ---
 
+### Multiple Database Modules In One App
+
+Register the connector separately inside each Nest database module that owns a specific TypeORM connection. The connector module is scoped to that module registration, so multiple connector instances can safely coexist in one application.
+
+```typescript
+import { getDataSourceToken } from "@nestjs/typeorm";
+
+TypeOrmAwsConnectorModule.registerAsync({
+  dataSourceToken: getDataSourceToken("provider"),
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => ({
+    entities: [ProviderEntity],
+  }),
+});
+```
+
+Use `dataSourceToken` when the connector's `RotatorService` should bind to a named TypeORM `DataSource` instead of the default connection token.
+
+---
+
 ### Value Resolution Priority
 
 For each configuration field, values are resolved in this order:

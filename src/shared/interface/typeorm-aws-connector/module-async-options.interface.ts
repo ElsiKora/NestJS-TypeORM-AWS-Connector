@@ -1,7 +1,9 @@
 import type { InjectionToken, ModuleMetadata, OptionalFactoryDependency } from "@nestjs/common/interfaces";
-import type { TTypeOrmAwsConnectorModuleOptions } from "@shared/type/typeorm-aws-connector";
+
+import type { ITypeOrmAwsConnectorConfig } from "./config.interface";
 
 export interface ITypeOrmAwsConnectorModuleAsyncOptions<TFactoryArguments extends Array<unknown> = Array<unknown>> extends Pick<ModuleMetadata, "imports"> {
+	dataSourceToken?: InjectionToken;
 	inject?: Array<InjectionToken | OptionalFactoryDependency>;
-	useFactory: (...arguments_: TFactoryArguments) => Promise<TTypeOrmAwsConnectorModuleOptions> | TTypeOrmAwsConnectorModuleOptions;
+	useFactory: (...arguments_: TFactoryArguments) => ITypeOrmAwsConnectorConfig | Promise<ITypeOrmAwsConnectorConfig>;
 }
