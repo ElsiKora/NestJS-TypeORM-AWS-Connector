@@ -6,9 +6,8 @@ import { GetSecretValueCommand, GetSecretValueCommandOutput, SecretsManagerClien
 import { ParameterStoreConfigService } from "@elsikora/nestjs-aws-parameter-store-config";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
+import { DATABASE_CONFIG_PROVIDER, TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
 import { EDatabaseType, ERelationLoadStrategy } from "@shared/enum";
-import { DATABASE_CONFIG_PROVIDER } from "@shared/provider/typeorm-aws-connector";
 
 @Injectable()
 export class TypeOrmAwsConnectorService {
