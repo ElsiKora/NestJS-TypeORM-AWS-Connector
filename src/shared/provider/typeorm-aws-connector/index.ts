@@ -1,1 +1,1 @@
-export { createDatabaseConfigProvider, DATABASE_CONFIG_PROVIDER } from "./database.provider";
+export { createDatabaseConfigProvider, toTypeOrmAwsConnectorConfig } from "./database.provider";

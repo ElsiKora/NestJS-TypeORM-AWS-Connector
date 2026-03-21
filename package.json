@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-typeorm-aws-connector",
-	"version": "1.3.4",
+	"version": "1.4.0-dev.1",
 	"description": "NestJS application configuration with AWS Parameter Store and TypeORM",
 	"homepage": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector#readme",
 	"bugs": {
@@ -39,7 +39,8 @@
 		"lint:types:fix": "tsc --noEmit --skipLibCheck",
 		"lint:watch": "npx eslint-watch ./",
 		"prepare": "husky",
-		"release": "semantic-release"
+		"release": "semantic-release",
+		"test": "npm run build && node --test test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
 	},
 	"config": {
 		"commitizen": {
