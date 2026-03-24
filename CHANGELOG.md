@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.4.0...v1.4.1) (2026-03-24)
+
+
+### Bug Fixes
+
+* **typeorm-aws-connector:** stage credential rotation reconnect ([8fee2ff](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/8fee2ff9a03661cab6c6a525e351e1d29e76f58a))
+
 # [1.4.0](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.3.4...v1.4.0) (2026-03-21)
 
 
