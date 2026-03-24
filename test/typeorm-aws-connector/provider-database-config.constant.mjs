@@ -1,7 +1,7 @@
 import { EDatabaseType } from "@elsikora/nestjs-typeorm-aws-connector";
 
 const PROVIDER_DATABASE_CONFIG = {
-	databaseName: "spinwin_quickspin",
+	databaseName: "test_provider",
 	entities: [],
 	host: "provider-host",
 	password: "provider-password",

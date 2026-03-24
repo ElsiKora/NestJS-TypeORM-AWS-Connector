@@ -1,18 +1,40 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
-import { DataSource, DataSourceOptions, EntitySubscriberInterface, QueryRunner } from "typeorm";
+import { DataSource, DataSourceOptions, QueryRunner } from "typeorm";
 
 import { TypeOrmAwsConnectorService } from "../typeorm-aws-connector.service";
 
+type TMutableDriver = {
+	connection: DataSource;
+	options: DataSourceOptions;
+} & DataSource["driver"];
+
+type TQueryRunnerMode = Parameters<DataSource["createQueryRunner"]>[0];
+
+type TRetiredDriver = {
+	driver: TMutableDriver;
+	generation: number;
+};
+
 @Injectable()
-export class RotatorService implements OnModuleInit {
+export class RotatorService implements OnModuleDestroy, OnModuleInit {
+	private readonly activeQueryRunnerCountsByGeneration: Map<number, number> = new Map<number, number>();
+
 	private consecutiveFailures: number = 0;
+
+	private currentDriverGeneration: number = 0;
+
+	private isDataSourceTrackingInstalled: boolean = false;
 
 	private isRotationInProgress: boolean = false;
 
 	private readonly LOGGER: Logger;
 
 	private readonly MAX_CONSECUTIVE_FAILURES: number = 3;
+
+	private retiredDriverDisposal: Promise<void> = Promise.resolve();
+
+	private retiredDrivers: Array<TRetiredDriver> = [];
 
 	constructor(
 		private readonly dataSource: DataSource | undefined,
@@ -23,6 +45,10 @@ export class RotatorService implements OnModuleInit {
 		this.LOGGER = new Logger(`${RotatorService.name}:${this.rotationIntervalName}`);
 	}
 
+	async onModuleDestroy(): Promise<void> {
+		await this.scheduleRetiredDriverDisposal(true);
+	}
+
 	onModuleInit(): void {
 		const rotationConfig: { intervalMs: number; isEnabled: boolean } = this.connectorService.getRotationConfig();
 
@@ -30,7 +56,8 @@ export class RotatorService implements OnModuleInit {
 			return;
 		}
 
-		this.getRequiredDataSource();
+		const dataSource: DataSource = this.getRequiredDataSource();
+		this.installDataSourceTracking(dataSource);
 
 		const interval: ReturnType<typeof setInterval> = setInterval(() => {
 			void this.safeRotateDatabaseConnection();
@@ -44,89 +71,49 @@ export class RotatorService implements OnModuleInit {
 		this.LOGGER.log("Launching DB credentials rotation interval...");
 
 		const dataSource: DataSource = this.getRequiredDataSource();
+		this.installDataSourceTracking(dataSource);
+
+		if (!dataSource.isInitialized) {
+			this.LOGGER.warn("Skipping DB credentials rotation because the live DataSource is not initialized yet");
+
+			return;
+		}
 
 		// First verify the current connection is actually healthy
 		await this.validateConnectionHealth(dataSource);
 
-		// Backup existing configuration
-		const currentOptions: DataSourceOptions = dataSource.options;
-		const subscribers: Array<EntitySubscriberInterface> = [...dataSource.subscribers];
-
 		// Get fresh credentials from AWS
 		const freshOptions: DataSourceOptions = await this.connectorService.getTypeOrmOptions();
+		const mergedOptions: DataSourceOptions = this.mergeDataSourceOptions(dataSource.options, freshOptions);
+		const nextDataSource: DataSource = this.createReplacementDataSource(mergedOptions);
 
-		const mergedOptions: DataSourceOptions = {
-			...currentOptions,
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-			extra: {
-				...currentOptions.extra,
-			},
-			// @ts-ignore
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-			host: freshOptions.host,
-			// @ts-ignore
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-			password: freshOptions.password,
-			// @ts-ignore
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-			username: freshOptions.username,
-		};
+		try {
+			await nextDataSource.initialize();
+			await this.verifyNewConnection(nextDataSource);
+		} catch (error) {
+			await this.destroyReplacementDataSource(nextDataSource);
 
-		// Destroy old connection only if initialized
-		if (dataSource.isInitialized) {
-			await dataSource.destroy();
+			throw error;
 		}
 
-		// Create and initialize a new data source with fresh credentials
-		const newDataSource: DataSource = new DataSource(mergedOptions);
-		await newDataSource.initialize();
-
-		// Verify the new connection works by performing a simple query
-		await this.verifyNewConnection(newDataSource);
-
-		// Re-add subscribers
-		for (const subscriber of subscribers) {
-			newDataSource.subscribers.push(subscriber);
-		}
-
-		// Update the existing data source with new connection
-		dataSource.setOptions(mergedOptions);
-		this.replaceDataSourceDriver(dataSource, newDataSource);
+		this.promoteReplacementDataSource(dataSource, nextDataSource, mergedOptions);
+		void this.scheduleRetiredDriverDisposal(false);
 
 		this.LOGGER.log("Rotation completed successfully!");
+	}
+
+	protected createReplacementDataSource(options: DataSourceOptions): DataSource {
+		return new DataSource(options);
+	}
+
+	private asMutableDriver(driver: DataSource["driver"]): TMutableDriver {
+		return driver as TMutableDriver;
 	}
 
 	private async attemptEmergencyRecovery(): Promise<void> {
 		try {
 			this.LOGGER.log("Attempting emergency database connection recovery...");
-			const dataSource: DataSource = this.getRequiredDataSource();
-
-			// Get fresh credentials and connection options from AWS
-			const freshOptions: DataSourceOptions = await this.connectorService.getTypeOrmOptions();
-
-			// If the data source is still initialized, destroy it first
-			if (dataSource.isInitialized) {
-				await dataSource.destroy();
-			}
-
-			// Create a completely new data source with fresh options
-			const recoveryDataSource: DataSource = new DataSource({
-				...freshOptions,
-			});
-
-			// Initialize the recovery data source
-			await recoveryDataSource.initialize();
-
-			// Transfer subscribers
-			const subscribers: Array<EntitySubscriberInterface> = [...dataSource.subscribers];
-
-			for (const subscriber of subscribers) {
-				recoveryDataSource.subscribers.push(subscriber);
-			}
-
-			// Replace the driver and connection objects
-			dataSource.setOptions(recoveryDataSource.options);
-			this.replaceDataSourceDriver(dataSource, recoveryDataSource);
+			await this.rotateDatabaseConnection();
 
 			// Reset failure counter after successful recovery
 			this.consecutiveFailures = 0;
@@ -134,6 +121,65 @@ export class RotatorService implements OnModuleInit {
 		} catch (recoveryError) {
 			this.LOGGER.error(`Emergency recovery failed: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`);
 		}
+	}
+
+	private decrementActiveQueryRunnerCount(generation: number): void {
+		const nextCount: number = (this.activeQueryRunnerCountsByGeneration.get(generation) ?? 0) - 1;
+
+		if (nextCount <= 0) {
+			this.activeQueryRunnerCountsByGeneration.delete(generation);
+
+			return;
+		}
+
+		this.activeQueryRunnerCountsByGeneration.set(generation, nextCount);
+	}
+
+	private async destroyReplacementDataSource(dataSource: DataSource): Promise<void> {
+		if (!dataSource.isInitialized) {
+			return;
+		}
+
+		await dataSource.destroy();
+	}
+
+	private async disposeRetiredDrivers(force: boolean): Promise<void> {
+		const pendingRetiredDrivers: Array<TRetiredDriver> = [];
+
+		for (const retiredDriver of this.retiredDrivers) {
+			const activeQueryRunnerCount: number = this.activeQueryRunnerCountsByGeneration.get(retiredDriver.generation) ?? 0;
+
+			if (!force && activeQueryRunnerCount > 0) {
+				pendingRetiredDrivers.push(retiredDriver);
+
+				continue;
+			}
+
+			try {
+				await retiredDriver.driver.disconnect();
+				this.LOGGER.debug(`Disposed retired DB driver from generation ${String(retiredDriver.generation)}`);
+			} catch (error) {
+				this.LOGGER.error(`Failed to dispose retired DB driver from generation ${String(retiredDriver.generation)}: ${error instanceof Error ? error.message : String(error)}`);
+
+				if (!force) {
+					pendingRetiredDrivers.push(retiredDriver);
+				}
+			}
+		}
+
+		this.retiredDrivers = pendingRetiredDrivers;
+	}
+
+	private getExtraOptions(options: DataSourceOptions): Record<string, unknown> {
+		const extraCandidate: unknown = (options as { extra?: unknown }).extra;
+
+		if (typeof extraCandidate !== "object" || extraCandidate === null || Array.isArray(extraCandidate)) {
+			return {};
+		}
+
+		return {
+			...(extraCandidate as Record<string, unknown>),
+		};
 	}
 
 	private getRequiredDataSource(): DataSource {
@@ -144,10 +190,65 @@ export class RotatorService implements OnModuleInit {
 		return this.dataSource;
 	}
 
-	private replaceDataSourceDriver(dataSource: DataSource, nextDataSource: DataSource): void {
-		const mutableDataSource: { driver: DataSource["driver"] } & DataSource = dataSource;
+	private incrementActiveQueryRunnerCount(generation: number): void {
+		this.activeQueryRunnerCountsByGeneration.set(generation, (this.activeQueryRunnerCountsByGeneration.get(generation) ?? 0) + 1);
+	}
 
-		mutableDataSource.driver = nextDataSource.driver;
+	private installDataSourceTracking(dataSource: DataSource): void {
+		if (this.isDataSourceTrackingInstalled) {
+			return;
+		}
+
+		const originalCreateQueryRunner: DataSource["createQueryRunner"] = dataSource.createQueryRunner.bind(dataSource);
+
+		dataSource.createQueryRunner = (mode?: TQueryRunnerMode): QueryRunner => {
+			const generation: number = this.currentDriverGeneration;
+			this.incrementActiveQueryRunnerCount(generation);
+
+			try {
+				const queryRunner: QueryRunner = originalCreateQueryRunner(mode);
+
+				this.trackQueryRunnerRelease(generation, queryRunner);
+
+				return queryRunner;
+			} catch (error) {
+				this.decrementActiveQueryRunnerCount(generation);
+
+				throw error;
+			}
+		};
+
+		this.isDataSourceTrackingInstalled = true;
+	}
+
+	private mergeDataSourceOptions(currentOptions: DataSourceOptions, freshOptions: DataSourceOptions): DataSourceOptions {
+		this.validateRotationDataSourceOptions(currentOptions);
+		this.validateRotationDataSourceOptions(freshOptions);
+
+		return {
+			...currentOptions,
+			...freshOptions,
+			extra: {
+				...this.getExtraOptions(currentOptions),
+				...this.getExtraOptions(freshOptions),
+			},
+		} as DataSourceOptions;
+	}
+
+	private promoteReplacementDataSource(dataSource: DataSource, nextDataSource: DataSource, mergedOptions: DataSourceOptions): void {
+		const mutableCurrentDriver: TMutableDriver = this.asMutableDriver(dataSource.driver);
+		const mutableNextDriver: TMutableDriver = this.asMutableDriver(nextDataSource.driver);
+		const retiredGeneration: number = this.currentDriverGeneration;
+
+		this.currentDriverGeneration += 1;
+		mutableNextDriver.connection = dataSource;
+		dataSource.driver = mutableNextDriver;
+		dataSource.setOptions(mergedOptions);
+		mutableNextDriver.options = dataSource.options;
+		this.retiredDrivers.push({
+			driver: mutableCurrentDriver,
+			generation: retiredGeneration,
+		});
 	}
 
 	private async safeRotateDatabaseConnection(): Promise<void> {
@@ -175,6 +276,43 @@ export class RotatorService implements OnModuleInit {
 		}
 	}
 
+	private scheduleRetiredDriverDisposal(force: boolean): Promise<void> {
+		const nextDisposal: Promise<void> = this.retiredDriverDisposal
+			.catch((error: unknown) => {
+				this.LOGGER.error(`Retired driver disposal chain failed: ${error instanceof Error ? error.message : String(error)}`);
+			})
+			.then(async () => {
+				await this.disposeRetiredDrivers(force);
+			});
+
+		this.retiredDriverDisposal = nextDisposal;
+
+		return nextDisposal;
+	}
+
+	private trackQueryRunnerRelease(generation: number, queryRunner: QueryRunner): void {
+		const originalRelease: QueryRunner["release"] = queryRunner.release.bind(queryRunner);
+		let isTrackedReleaseHandled: boolean = false;
+
+		queryRunner.release = async (): Promise<void> => {
+			let shouldHandleTrackedRelease: boolean = false;
+
+			try {
+				await originalRelease();
+			} finally {
+				shouldHandleTrackedRelease = !isTrackedReleaseHandled;
+				isTrackedReleaseHandled = true;
+			}
+
+			if (!shouldHandleTrackedRelease) {
+				return;
+			}
+
+			this.decrementActiveQueryRunnerCount(generation);
+			await this.scheduleRetiredDriverDisposal(false);
+		};
+	}
+
 	private async validateConnectionHealth(dataSource: DataSource): Promise<void> {
 		if (!dataSource.isInitialized) {
 			this.LOGGER.warn("Current data source is not initialized, no health check needed");
@@ -185,8 +323,13 @@ export class RotatorService implements OnModuleInit {
 		try {
 			// Test the current connection with a simple query
 			const queryRunner: QueryRunner = dataSource.createQueryRunner();
-			await queryRunner.query("SELECT 1");
-			await queryRunner.release();
+
+			try {
+				await queryRunner.query("SELECT 1");
+			} finally {
+				await queryRunner.release();
+			}
+
 			this.LOGGER.debug("Current connection is healthy");
 		} catch (error) {
 			this.LOGGER.warn(`Current connection health check failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -194,11 +337,24 @@ export class RotatorService implements OnModuleInit {
 		}
 	}
 
+	private validateRotationDataSourceOptions(options: DataSourceOptions): void {
+		if (options.type === "mysql" || options.type === "postgres") {
+			return;
+		}
+
+		throw new Error(`Database rotation is supported only for "mysql" and "postgres" data sources. Received: "${options.type}".`);
+	}
+
 	private async verifyNewConnection(dataSource: DataSource): Promise<void> {
 		try {
 			const queryRunner: QueryRunner = dataSource.createQueryRunner();
-			await queryRunner.query("SELECT 1");
-			await queryRunner.release();
+
+			try {
+				await queryRunner.query("SELECT 1");
+			} finally {
+				await queryRunner.release();
+			}
+
 			this.LOGGER.debug("New connection verified successfully");
 		} catch (error) {
 			this.LOGGER.error(`New connection verification failed: ${error instanceof Error ? error.message : String(error)}`);
