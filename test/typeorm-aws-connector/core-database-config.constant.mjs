@@ -1,7 +1,7 @@
 import { EDatabaseType } from "@elsikora/nestjs-typeorm-aws-connector";
 
 const CORE_DATABASE_CONFIG = {
-	databaseName: "spinwin_core",
+	databaseName: "test_core",
 	entities: [],
 	host: "core-host",
 	password: "core-password",

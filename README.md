@@ -16,7 +16,7 @@
 ## 💡 Highlights
 
 - 🔐 Zero-credential codebase — resolves all database config from AWS SSM Parameter Store & Secrets Manager at runtime
-- ♻️ Built-in automatic credential rotation with health checks, emergency recovery, and zero-downtime connection swaps
+- ♻️ Built-in automatic credential rotation with health checks, staged driver promotion, and graceful old-pool drainage
 - 🏗️ Split-source architecture — infra teams own host/port/secrets, app teams own pool/timeout/sync settings independently
 - 📦 Dual ESM/CJS module output with full TypeScript declarations and broad NestJS compatibility (v8–v11)
 
@@ -37,7 +37,7 @@
 ## 📖 Description
 **NestJS-TypeORM-AWS-Connector** is a production-grade NestJS module that eliminates the pain of managing database configuration in AWS-hosted applications. Instead of hardcoding credentials or juggling environment variables, this connector resolves your entire TypeORM `DataSourceOptions` from **AWS Systems Manager Parameter Store** and **AWS Secrets Manager** — with built-in credential rotation.
 
-In modern cloud-native architectures, database credentials are rotated regularly for security compliance. Traditional approaches break connections during rotation, causing downtime. This connector solves that with an intelligent **automatic credential rotation service** that seamlessly refreshes database connections with zero downtime, including emergency recovery after consecutive failures.
+In modern cloud-native architectures, database credentials are rotated regularly for security compliance. Traditional approaches break connections during rotation, causing downtime. This connector avoids destructive mid-run `DataSource` teardown by validating a replacement connection first, promoting the new driver for future query runners, and retiring the previous pool only after existing query runners drain.
 
 ### Real-World Use Cases
 
@@ -65,8 +65,8 @@ The connector uses a **split-source model**: infrastructure-owned parameters (ho
 ## 🚀 Features
 - ✨ ****AWS Parameter Store Integration** — Resolves database host, port, name, type, and tuning parameters from structured SSM paths with hierarchical namespace support**
 - ✨ ****AWS Secrets Manager Integration** — Fetches username/password credentials from Secrets Manager with proper error handling for missing or malformed secrets**
-- ✨ ****Automatic Credential Rotation** — Configurable interval-based rotation that swaps database connections with zero downtime, including subscriber preservation**
-- ✨ ****Emergency Recovery** — After 3 consecutive rotation failures, automatically attempts full connection recovery with fresh credentials from AWS**
+- ✨ ****Automatic Credential Rotation** — Configurable interval-based rotation that validates a replacement connection before promoting it for future query runners**
+- ✨ ****Emergency Recovery** — After 3 consecutive rotation failures, automatically retries recovery without destructively tearing down the live `DataSource`**
 - ✨ ****Connection Health Validation** — Validates both existing and new connections with `SELECT 1` queries before and after rotation**
 - ✨ ****Split-Source Configuration Model** — Infrastructure-owned settings (host, port, secret-id) use canonical AWS namespaces; app-owned settings use your module namespace**
 - ✨ ****Raw Value Overrides** — Bypass SSM entirely for any field by providing direct values — perfect for local development with `host: '127.0.0.1'`**
@@ -124,10 +124,10 @@ sequenceDiagram
         Rotator->>Connector: getTypeOrmOptions()
         Connector->>SM: Fetch fresh credentials
         SM-->>Connector: New username + password
-        Rotator->>TypeORM: Destroy old connection
-        Rotator->>TypeORM: Initialize new DataSource
+        Rotator->>TypeORM: Initialize replacement DataSource
         Rotator->>TypeORM: Verify with SELECT 1
-        Rotator->>TypeORM: Swap driver + restore subscribers
+        Rotator->>TypeORM: Promote replacement driver for future query runners
+        Rotator->>TypeORM: Retire previous pool after active query runners drain
     end
 ```
 
@@ -337,10 +337,13 @@ TypeOrmAwsConnectorModule.register({
 The rotation service will:
 1. Validate current connection health
 2. Fetch fresh credentials from AWS Secrets Manager
-3. Create a new DataSource with updated credentials
-4. Verify the new connection with a `SELECT 1` query
-5. Swap the driver seamlessly, preserving all subscribers
-6. Attempt emergency recovery after 3 consecutive failures
+3. Create and initialize a replacement `DataSource` with the updated credentials
+4. Verify the replacement connection with a `SELECT 1` query
+5. Promote the replacement driver for future query runners without destroying the live `DataSource`
+6. Dispose the previous pool only after query runners created before the promotion are released
+7. Attempt emergency recovery after 3 consecutive failures
+
+Rotation is intended for long-lived services. For one-shot jobs, migrations, or explicit CLI tasks, keep `rotation.isEnabled` disabled so the connector does not register a background interval.
 
 ---
 
@@ -402,7 +405,7 @@ Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw expli
 |---|---|
 | Dual ESM/CJS module output | ✅ Done |
 | AWS Secrets Manager credential resolution | ✅ Done |
-| Automatic credential rotation with zero downtime | ✅ Done |
+| Automatic credential rotation with staged driver promotion | ✅ Done |
 | Emergency recovery after consecutive rotation failures | ✅ Done |
 | Split-source configuration model (infra vs app namespaces) | ✅ Done |
 | Raw value overrides for local development | ✅ Done |
@@ -429,7 +432,7 @@ A: No! Use raw value overrides to bypass AWS entirely during local development. 
 A: Currently PostgreSQL (`EDatabaseType.POSTGRES`) and MySQL (`EDatabaseType.MYSQL`). The `type` field is resolved from SSM or set directly.
 
 **Q: What happens if AWS Secrets Manager is unreachable during rotation?**
-A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a completely fresh DataSource. The existing connection continues to function until rotation succeeds.
+A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
 
 **Q: Can I use this without `@elsikora/nestjs-aws-parameter-store-config`?**
 A: No. The connector depends on `ParameterStoreConfigService.get()` for SSM lookups. You must register `ParameterStoreConfigModule` first. However, if you provide raw values for all fields, SSM lookups won't actually be invoked.
@@ -441,7 +444,7 @@ A: Infrastructure-owned fields like `host`, `port`, and `secretId` default to ca
 A: Yes. The peer dependency accepts `@nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0`.
 
 **Q: How do I disable credential rotation?**
-A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely.
+A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely. This is the recommended mode for one-shot jobs, migrations, and other short-lived processes.
 
 **Q: What's the default rotation interval?**
 A: 1 hour (3,600,000 ms). Override it via `rotation.intervalMs` or the SSM path `typeorm/rotation/interval-ms`.
