@@ -26,5 +26,5 @@ export function toTypeOrmAwsConnectorConfig(options: TTypeOrmAwsConnectorModuleO
 
 	delete databaseConfig.dataSourceToken;
 
-	return databaseConfig as ITypeOrmAwsConnectorConfig;
+	return databaseConfig;
 }

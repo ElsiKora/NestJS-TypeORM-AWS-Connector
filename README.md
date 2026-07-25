@@ -21,6 +21,7 @@
 - 📦 Dual ESM/CJS module output with full TypeScript declarations and broad NestJS compatibility (v8–v11)
 
 ## 📚 Table of Contents
+
 - [Description](#-description)
 - [Tech Stack](#-tech-stack)
 - [Features](#-features)
@@ -35,6 +36,7 @@
 - [Acknowledgments](#-acknowledgments)
 
 ## 📖 Description
+
 **NestJS-TypeORM-AWS-Connector** is a production-grade NestJS module that eliminates the pain of managing database configuration in AWS-hosted applications. Instead of hardcoding credentials or juggling environment variables, this connector resolves your entire TypeORM `DataSourceOptions` from **AWS Systems Manager Parameter Store** and **AWS Secrets Manager** — with built-in credential rotation.
 
 In modern cloud-native architectures, database credentials are rotated regularly for security compliance. Traditional approaches break connections during rotation, causing downtime. This connector avoids destructive mid-run `DataSource` teardown by validating a replacement connection first, promoting the new driver for future query runners, and retiring the previous pool only after existing query runners drain.
@@ -50,19 +52,20 @@ The connector uses a **split-source model**: infrastructure-owned parameters (ho
 
 ## 🛠️ Tech Stack
 
-| Category | Technologies |
-|----------|-------------|
-| **Language** | TypeScript |
-| **Runtime** | Node.js |
-| **Framework** | NestJS |
-| **ORM** | TypeORM |
-| **Cloud Services** | AWS SSM Parameter Store, AWS Secrets Manager |
-| **Build Tool** | Rollup |
-| **Linting** | ESLint, Prettier |
-| **CI/CD** | GitHub Actions, Semantic Release |
-| **Package Manager** | npm |
+| Category            | Technologies                                 |
+| ------------------- | -------------------------------------------- |
+| **Language**        | TypeScript                                   |
+| **Runtime**         | Node.js                                      |
+| **Framework**       | NestJS                                       |
+| **ORM**             | TypeORM                                      |
+| **Cloud Services**  | AWS SSM Parameter Store, AWS Secrets Manager |
+| **Build Tool**      | Rollup                                       |
+| **Linting**         | ESLint, Prettier                             |
+| **CI/CD**           | GitHub Actions, Semantic Release             |
+| **Package Manager** | npm                                          |
 
 ## 🚀 Features
+
 - ✨ ****AWS Parameter Store Integration** — Resolves database host, port, name, type, and tuning parameters from structured SSM paths with hierarchical namespace support**
 - ✨ ****AWS Secrets Manager Integration** — Fetches username/password credentials from Secrets Manager with proper error handling for missing or malformed secrets**
 - ✨ ****Automatic Credential Rotation** — Configurable interval-based rotation that validates a replacement connection before promoting it for future query runners**
@@ -175,7 +178,7 @@ NestJS-TypeORM-AWS-Connector/
 
 ## 📋 Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js >= 20.0.0
 - npm >= 9.0.0
 - @nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
 - @aws-sdk/client-ssm ^3.535.0
@@ -184,6 +187,7 @@ NestJS-TypeORM-AWS-Connector/
 - AWS credentials configured (IAM role, environment variables, or AWS CLI profile)
 
 ## 🛠 Installation
+
 ```bash
 # Install the connector and its required peer dependencies
 npm install @elsikora/nestjs-typeorm-aws-connector @aws-sdk/client-ssm @nestjs/common typeorm
@@ -202,6 +206,7 @@ npm ls @elsikora/nestjs-typeorm-aws-connector
 ```
 
 ## 💡 Usage
+
 ### Prerequisites: Register Parameter Store Config Module
 
 Before using the connector, register `ParameterStoreConfigModule` from `@elsikora/nestjs-aws-parameter-store-config`:
@@ -212,21 +217,21 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ENamespace, ParameterStoreConfigModule } from "@elsikora/nestjs-aws-parameter-store-config";
 
 @Module({
-  imports: [
-    ConfigModule.forRoot(),
-    ParameterStoreConfigModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        application: configService.getOrThrow<string>("APPLICATION"),
-        config: { region: configService.getOrThrow<string>("AWS_REGION") },
-        environment: configService.getOrThrow<string>("ENVIRONMENT"),
-        instanceName: "my-api",
-        namespace: ENamespace.AWS_ECS_FARGATE,
-        shouldDecryptParameters: true,
-      }),
-    }),
-  ],
+	imports: [
+		ConfigModule.forRoot(),
+		ParameterStoreConfigModule.registerAsync({
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				application: configService.getOrThrow<string>("APPLICATION"),
+				config: { region: configService.getOrThrow<string>("AWS_REGION") },
+				environment: configService.getOrThrow<string>("ENVIRONMENT"),
+				instanceName: "my-api",
+				namespace: ENamespace.AWS_ECS_FARGATE,
+				shouldDecryptParameters: true,
+			}),
+		}),
+	],
 })
 export class AppModule {}
 ```
@@ -238,26 +243,22 @@ export class AppModule {}
 ```typescript
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import {
-  TypeOrmAwsConnectorModule,
-  TypeOrmAwsConnectorService,
-} from "@elsikora/nestjs-typeorm-aws-connector";
+import { TypeOrmAwsConnectorModule, TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
 import { UserEntity } from "./entities/user.entity";
 
 @Module({
-  imports: [
-    // Register the connector with your entities
-    TypeOrmAwsConnectorModule.register({
-      entities: [UserEntity],
-    }),
-    // Wire it into TypeOrmModule
-    TypeOrmModule.forRootAsync({
-      imports: [TypeOrmAwsConnectorModule],
-      inject: [TypeOrmAwsConnectorService],
-      useFactory: async (connector: TypeOrmAwsConnectorService) =>
-        connector.getTypeOrmOptions(),
-    }),
-  ],
+	imports: [
+		// Register the connector with your entities
+		TypeOrmAwsConnectorModule.register({
+			entities: [UserEntity],
+		}),
+		// Wire it into TypeOrmModule
+		TypeOrmModule.forRootAsync({
+			imports: [TypeOrmAwsConnectorModule],
+			inject: [TypeOrmAwsConnectorService],
+			useFactory: async (connector: TypeOrmAwsConnectorService) => connector.getTypeOrmOptions(),
+		}),
+	],
 })
 export class DatabaseModule {}
 ```
@@ -273,28 +274,28 @@ import { ENamespace } from "@elsikora/nestjs-aws-parameter-store-config";
 import { TypeOrmAwsConnectorModule } from "@elsikora/nestjs-typeorm-aws-connector";
 
 TypeOrmAwsConnectorModule.register({
-  entities: [UserEntity],
-  ssmLookupDefaults: {
-    instanceName: "my-api",
-    namespace: ENamespace.AWS_ECS_FARGATE,
-  },
-  ssmLookups: {
-    secretId: {
-      instanceName: "database",
-      namespace: ENamespace.AWS_SECRETS_MANAGER,
-      path: ["secret-id"],
-    },
-    host: {
-      instanceName: "aurora-postgres",
-      namespace: ENamespace.AWS_RDS,
-      path: ["host"],
-    },
-    port: {
-      instanceName: "aurora-postgres",
-      namespace: ENamespace.AWS_RDS,
-      path: ["port"],
-    },
-  },
+	entities: [UserEntity],
+	ssmLookupDefaults: {
+		instanceName: "my-api",
+		namespace: ENamespace.AWS_ECS_FARGATE,
+	},
+	ssmLookups: {
+		secretId: {
+			instanceName: "database",
+			namespace: ENamespace.AWS_SECRETS_MANAGER,
+			path: ["secret-id"],
+		},
+		host: {
+			instanceName: "aurora-postgres",
+			namespace: ENamespace.AWS_RDS,
+			path: ["host"],
+		},
+		port: {
+			instanceName: "aurora-postgres",
+			namespace: ENamespace.AWS_RDS,
+			path: ["port"],
+		},
+	},
 });
 ```
 
@@ -308,13 +309,13 @@ Bypass AWS entirely for local development:
 import { EDatabaseType } from "@elsikora/nestjs-typeorm-aws-connector";
 
 TypeOrmAwsConnectorModule.register({
-  entities: [UserEntity],
-  host: "127.0.0.1",
-  port: 5432,
-  username: "local-user",
-  password: "local-password",
-  databaseName: "mydb",
-  type: EDatabaseType.POSTGRES,
+	entities: [UserEntity],
+	host: "127.0.0.1",
+	port: 5432,
+	username: "local-user",
+	password: "local-password",
+	databaseName: "mydb",
+	type: EDatabaseType.POSTGRES,
 });
 ```
 
@@ -326,15 +327,16 @@ Enable automatic credential rotation for long-running services:
 
 ```typescript
 TypeOrmAwsConnectorModule.register({
-  entities: [UserEntity],
-  rotation: {
-    isEnabled: true,
-    intervalMs: 3_600_000, // Rotate every hour
-  },
+	entities: [UserEntity],
+	rotation: {
+		isEnabled: true,
+		intervalMs: 3_600_000, // Rotate every hour
+	},
 });
 ```
 
 The rotation service will:
+
 1. Validate current connection health
 2. Fetch fresh credentials from AWS Secrets Manager
 3. Create and initialize a replacement `DataSource` with the updated credentials
@@ -351,15 +353,15 @@ Rotation is intended for long-lived services. For one-shot jobs, migrations, or 
 
 ```typescript
 TypeOrmAwsConnectorModule.registerAsync({
-  imports: [ConfigModule],
-  inject: [ConfigService],
-  useFactory: (configService: ConfigService) => ({
-    entities: [UserEntity],
-    rotation: {
-      isEnabled: configService.get<boolean>("DB_ROTATION_ENABLED", false),
-      intervalMs: configService.get<number>("DB_ROTATION_INTERVAL", 3_600_000),
-    },
-  }),
+	imports: [ConfigModule],
+	inject: [ConfigService],
+	useFactory: (configService: ConfigService) => ({
+		entities: [UserEntity],
+		rotation: {
+			isEnabled: configService.get<boolean>("DB_ROTATION_ENABLED", false),
+			intervalMs: configService.get<number>("DB_ROTATION_INTERVAL", 3_600_000),
+		},
+	}),
 });
 ```
 
@@ -373,12 +375,12 @@ Register the connector separately inside each Nest database module that owns a s
 import { getDataSourceToken } from "@nestjs/typeorm";
 
 TypeOrmAwsConnectorModule.registerAsync({
-  dataSourceToken: getDataSourceToken("provider"),
-  imports: [ConfigModule],
-  inject: [ConfigService],
-  useFactory: (configService: ConfigService) => ({
-    entities: [ProviderEntity],
-  }),
+	dataSourceToken: getDataSourceToken("provider"),
+	imports: [ConfigModule],
+	inject: [ConfigService],
+	useFactory: (configService: ConfigService) => ({
+		entities: [ProviderEntity],
+	}),
 });
 ```
 
@@ -401,20 +403,20 @@ Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw expli
 <details>
 <summary>Click to expand</summary>
 
-| Task / Feature | Status |
-|---|---|
-| Dual ESM/CJS module output | ✅ Done |
-| AWS Secrets Manager credential resolution | ✅ Done |
-| Automatic credential rotation with staged driver promotion | ✅ Done |
-| Emergency recovery after consecutive rotation failures | ✅ Done |
-| Split-source configuration model (infra vs app namespaces) | ✅ Done |
-| Raw value overrides for local development | ✅ Done |
-| Async module registration with factory pattern | ✅ Done |
-| Semantic release with prerelease channel | ✅ Done |
+| Task / Feature                                                     | Status         |
+| ------------------------------------------------------------------ | -------------- |
+| Dual ESM/CJS module output                                         | ✅ Done        |
+| AWS Secrets Manager credential resolution                          | ✅ Done        |
+| Automatic credential rotation with staged driver promotion         | ✅ Done        |
+| Emergency recovery after consecutive rotation failures             | ✅ Done        |
+| Split-source configuration model (infra vs app namespaces)         | ✅ Done        |
+| Raw value overrides for local development                          | ✅ Done        |
+| Async module registration with factory pattern                     | ✅ Done        |
+| Semantic release with prerelease channel                           | ✅ Done        |
 | Support for additional database types (e.g., MariaDB, CockroachDB) | 🚧 In Progress |
-| Connection pool monitoring and metrics export | 🚧 In Progress |
-| Read replica support with separate SSM lookups | 🚧 In Progress |
-| Integration test suite with LocalStack | 🚧 In Progress |
+| Connection pool monitoring and metrics export                      | 🚧 In Progress |
+| Read replica support with separate SSM lookups                     | 🚧 In Progress |
+| Integration test suite with LocalStack                             | 🚧 In Progress |
 
 </details>
 
@@ -425,36 +427,30 @@ Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw expli
 
 ### ❓ Frequently Asked Questions
 
-**Q: Do I need AWS credentials to use this locally?**
-A: No! Use raw value overrides to bypass AWS entirely during local development. Set `host`, `port`, `username`, `password`, `databaseName`, and `type` directly in the config.
+**Q: Do I need AWS credentials to use this locally?** A: No! Use raw value overrides to bypass AWS entirely during local development. Set `host`, `port`, `username`, `password`, `databaseName`, and `type` directly in the config.
 
-**Q: Which databases are supported?**
-A: Currently PostgreSQL (`EDatabaseType.POSTGRES`) and MySQL (`EDatabaseType.MYSQL`). The `type` field is resolved from SSM or set directly.
+**Q: Which databases are supported?** A: Currently PostgreSQL (`EDatabaseType.POSTGRES`) and MySQL (`EDatabaseType.MYSQL`). The `type` field is resolved from SSM or set directly.
 
-**Q: What happens if AWS Secrets Manager is unreachable during rotation?**
-A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
+**Q: What happens if AWS Secrets Manager is unreachable during rotation?** A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
 
-**Q: Can I use this without `@elsikora/nestjs-aws-parameter-store-config`?**
-A: No. The connector depends on `ParameterStoreConfigService.get()` for SSM lookups. You must register `ParameterStoreConfigModule` first. However, if you provide raw values for all fields, SSM lookups won't actually be invoked.
+**Q: Can I use this without `@elsikora/nestjs-aws-parameter-store-config`?** A: No. The connector depends on `ParameterStoreConfigService.get()` for SSM lookups. You must register `ParameterStoreConfigModule` first. However, if you provide raw values for all fields, SSM lookups won't actually be invoked.
 
-**Q: How does the split-source model work?**
-A: Infrastructure-owned fields like `host`, `port`, and `secretId` default to canonical AWS namespaces (e.g., `aws-rds/aurora-postgres`). Application-owned fields like `poolSize` and `connectionTimeoutMs` use your app's namespace (e.g., `aws-ecs-fargate/my-api`). You can override any lookup.
+**Q: How does the split-source model work?** A: Infrastructure-owned fields like `host`, `port`, and `secretId` default to canonical AWS namespaces (e.g., `aws-rds/aurora-postgres`). Application-owned fields like `poolSize` and `connectionTimeoutMs` use your app's namespace (e.g., `aws-ecs-fargate/my-api`). You can override any lookup.
 
-**Q: Is this compatible with NestJS v8?**
-A: Yes. The peer dependency accepts `@nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0`.
+**Q: Is this compatible with NestJS v8?** A: Yes. The peer dependency accepts `@nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0`.
 
-**Q: How do I disable credential rotation?**
-A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely. This is the recommended mode for one-shot jobs, migrations, and other short-lived processes.
+**Q: How do I disable credential rotation?** A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely. This is the recommended mode for one-shot jobs, migrations, and other short-lived processes.
 
-**Q: What's the default rotation interval?**
-A: 1 hour (3,600,000 ms). Override it via `rotation.intervalMs` or the SSM path `typeorm/rotation/interval-ms`.
+**Q: What's the default rotation interval?** A: 1 hour (3,600,000 ms). Override it via `rotation.intervalMs` or the SSM path `typeorm/rotation/interval-ms`.
 
 </details>
 
 ## 🔒 License
+
 This project is licensed under **MIT**.
 
 ## 🙏 Acknowledgments
+
 - **[NestJS](https://nestjs.com/)** — The progressive Node.js framework that makes building server-side applications a joy
 - **[TypeORM](https://typeorm.io/)** — The ORM that powers the database layer with decorator-based entity definitions
 - **[AWS SDK for JavaScript v3](https://github.com/aws/aws-sdk-js-v3)** — Modular AWS SDK used for SSM and Secrets Manager client operations

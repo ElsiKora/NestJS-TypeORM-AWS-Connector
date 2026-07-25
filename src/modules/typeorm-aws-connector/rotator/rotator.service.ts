@@ -295,19 +295,19 @@ export class RotatorService implements OnModuleDestroy, OnModuleInit {
 		let isTrackedReleaseHandled: boolean = false;
 
 		queryRunner.release = async (): Promise<void> => {
-			let shouldHandleTrackedRelease: boolean = false;
-
 			try {
 				await originalRelease();
-			} finally {
-				shouldHandleTrackedRelease = !isTrackedReleaseHandled;
+			} catch (error) {
 				isTrackedReleaseHandled = true;
+
+				throw error;
 			}
 
-			if (!shouldHandleTrackedRelease) {
+			if (isTrackedReleaseHandled) {
 				return;
 			}
 
+			isTrackedReleaseHandled = true;
 			this.decrementActiveQueryRunnerCount(generation);
 			await this.scheduleRetiredDriverDisposal(false);
 		};
@@ -359,7 +359,7 @@ export class RotatorService implements OnModuleDestroy, OnModuleInit {
 		} catch (error) {
 			this.LOGGER.error(`New connection verification failed: ${error instanceof Error ? error.message : String(error)}`);
 
-			throw new Error(`Failed to verify new database connection: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Failed to verify new database connection: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
 	}
 }

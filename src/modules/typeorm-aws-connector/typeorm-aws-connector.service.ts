@@ -134,10 +134,10 @@ export class TypeOrmAwsConnectorService {
 			const message: string = error instanceof Error ? error.message : String(error);
 
 			if (errorName === "ResourceNotFoundException") {
-				throw new Error(`Secret in AWS Secrets Manager was not found for "secret-id" value "${secretId}".`);
+				throw new Error(`Secret in AWS Secrets Manager was not found for "secret-id" value "${secretId}".`, { cause: error });
 			}
 
-			throw new Error(`Failed to load secret from AWS Secrets Manager for "secret-id" value "${secretId}": ${message}`);
+			throw new Error(`Failed to load secret from AWS Secrets Manager for "secret-id" value "${secretId}": ${message}`, { cause: error });
 		}
 
 		if (!response.SecretString) {
@@ -147,7 +147,7 @@ export class TypeOrmAwsConnectorService {
 		try {
 			return JSON.parse(response.SecretString) as IAwsDatabaseCredentialsSecret;
 		} catch (error) {
-			throw new Error(`Secret in AWS Secrets Manager for "secret-id" value "${secretId}" contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Secret in AWS Secrets Manager for "secret-id" value "${secretId}" contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
 	}
 
@@ -178,7 +178,7 @@ export class TypeOrmAwsConnectorService {
 				value: this.parameterStoreConfigService.get(lookup),
 			};
 		} catch (error) {
-			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}". Lookup: ${JSON.stringify(lookup)}. ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}". Lookup: ${JSON.stringify(lookup)}. ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
 	}
 
