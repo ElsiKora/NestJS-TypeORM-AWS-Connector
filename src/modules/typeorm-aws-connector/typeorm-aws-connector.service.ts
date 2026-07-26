@@ -1,5 +1,5 @@
 import type { IAwsDatabaseCredentialsSecret } from "@shared/interface/aws";
-import type { IStructuredLookup, ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector";
+import type { IStructuredLookup, ITypeOrmAwsConnectorConfig, ITypeOrmAwsConnectorParameterStoreConfigReader } from "@shared/interface/typeorm-aws-connector";
 import type { TTypeOrmAwsConnectorResolvedRotationConfig } from "@shared/type/typeorm-aws-connector";
 import type { DataSourceOptions } from "typeorm";
 
@@ -16,7 +16,8 @@ export class TypeOrmAwsConnectorService {
 
 	constructor(
 		private readonly configService: ConfigService,
-		private readonly parameterStoreConfigService: ParameterStoreConfigService,
+		@Inject(ParameterStoreConfigService)
+		private readonly parameterStoreConfigService: ITypeOrmAwsConnectorParameterStoreConfigReader,
 		@Inject(DATABASE_CONFIG_PROVIDER)
 		private readonly databaseConfig: ITypeOrmAwsConnectorConfig,
 	) {}

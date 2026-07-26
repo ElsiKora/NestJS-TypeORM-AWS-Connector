@@ -1,5 +1,6 @@
 export { type ITypeOrmAwsConnectorConfig } from "./config.interface";
 export { type ITypeOrmAwsConnectorModuleAsyncOptions } from "./module-async-options.interface";
+export { type ITypeOrmAwsConnectorParameterStoreConfigReader } from "./parameter-store-config-reader.interface";
 export type * from "./rotation";
 export { type ITypeOrmAwsConnectorSsmLookupDefaults } from "./ssm-lookup-defaults.interface";
 export { type ITypeOrmAwsConnectorSsmLookups } from "./ssm-lookups.interface";

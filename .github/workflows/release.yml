@@ -29,8 +29,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build
-        run: npm run build
+      - name: Verify package
+        run: |
+          npm run format
+          npm run lint:all
+          npm test
+          npm pack --dry-run
 
       - name: Release
         env:

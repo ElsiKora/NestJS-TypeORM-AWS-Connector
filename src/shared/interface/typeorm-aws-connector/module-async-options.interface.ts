@@ -1,4 +1,4 @@
-import type { InjectionToken, ModuleMetadata, OptionalFactoryDependency } from "@nestjs/common/interfaces";
+import type { InjectionToken, ModuleMetadata, OptionalFactoryDependency } from "@nestjs/common";
 
 import type { ITypeOrmAwsConnectorConfig } from "./config.interface";
 
