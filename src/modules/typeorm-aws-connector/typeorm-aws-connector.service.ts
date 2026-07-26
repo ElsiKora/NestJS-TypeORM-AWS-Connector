@@ -1,5 +1,6 @@
 import type { IAwsDatabaseCredentialsSecret } from "@shared/interface/aws";
 import type { IStructuredLookup, ITypeOrmAwsConnectorConfig } from "@shared/interface/typeorm-aws-connector";
+import type { TTypeOrmAwsConnectorResolvedRotationConfig } from "@shared/type/typeorm-aws-connector";
 import type { DataSourceOptions } from "typeorm";
 
 import { GetSecretValueCommand, GetSecretValueCommandOutput, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
@@ -42,10 +43,33 @@ export class TypeOrmAwsConnectorService {
 		};
 	}
 
-	getRotationConfig(): { intervalMs: number; isEnabled: boolean } {
+	getRotationConfig(): TTypeOrmAwsConnectorResolvedRotationConfig {
+		const intervalMs: number = this.readOptionalNumberFromConfigOrSsm("rotationIntervalMs", this.databaseConfig.rotation?.intervalMs, TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_CONNECTION_ROTATION_INTERVAL);
+		const isEnabled: boolean = this.readOptionalBooleanFromConfigOrSsm("rotationIsEnabled", this.databaseConfig.rotation?.isEnabled ?? null, false);
+		const shutdownDrainTimeoutMs: number | undefined = this.readOptionalPositiveNumberFromConfigOrSsm("rotationShutdownDrainTimeoutMs", this.databaseConfig.rotation?.shutdownDrainTimeoutMs);
+
+		this.validatePositiveNumber("rotationIntervalMs", intervalMs);
+
+		if (isEnabled) {
+			if (shutdownDrainTimeoutMs === undefined) {
+				const lookup: IStructuredLookup = this.buildLookup("rotationShutdownDrainTimeoutMs");
+
+				throw new Error(`Value for "${this.getFieldLabel("rotationShutdownDrainTimeoutMs")}" was not found in AWS Systems Manager Parameter Store. Lookup: ${JSON.stringify(lookup)}.`);
+			}
+
+			return {
+				intervalMs,
+				isEnabled: true,
+				onEvent: this.databaseConfig.rotation?.onEvent,
+				shutdownDrainTimeoutMs,
+			};
+		}
+
 		return {
-			intervalMs: this.readOptionalNumberFromConfigOrSsm("rotationIntervalMs", this.databaseConfig.rotation?.intervalMs, TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_CONNECTION_ROTATION_INTERVAL),
-			isEnabled: this.readOptionalBooleanFromConfigOrSsm("rotationIsEnabled", this.databaseConfig.rotation?.isEnabled ?? null, false),
+			intervalMs,
+			isEnabled: false,
+			onEvent: this.databaseConfig.rotation?.onEvent,
+			shutdownDrainTimeoutMs,
 		};
 	}
 
@@ -134,10 +158,10 @@ export class TypeOrmAwsConnectorService {
 			const message: string = error instanceof Error ? error.message : String(error);
 
 			if (errorName === "ResourceNotFoundException") {
-				throw new Error(`Secret in AWS Secrets Manager was not found for "secret-id" value "${secretId}".`);
+				throw new Error(`Secret in AWS Secrets Manager was not found for "secret-id" value "${secretId}".`, { cause: error });
 			}
 
-			throw new Error(`Failed to load secret from AWS Secrets Manager for "secret-id" value "${secretId}": ${message}`);
+			throw new Error(`Failed to load secret from AWS Secrets Manager for "secret-id" value "${secretId}": ${message}`, { cause: error });
 		}
 
 		if (!response.SecretString) {
@@ -147,7 +171,7 @@ export class TypeOrmAwsConnectorService {
 		try {
 			return JSON.parse(response.SecretString) as IAwsDatabaseCredentialsSecret;
 		} catch (error) {
-			throw new Error(`Secret in AWS Secrets Manager for "secret-id" value "${secretId}" contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Secret in AWS Secrets Manager for "secret-id" value "${secretId}" contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
 	}
 
@@ -178,7 +202,7 @@ export class TypeOrmAwsConnectorService {
 				value: this.parameterStoreConfigService.get(lookup),
 			};
 		} catch (error) {
-			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}". Lookup: ${JSON.stringify(lookup)}. ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}". Lookup: ${JSON.stringify(lookup)}. ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
 	}
 
@@ -293,6 +317,28 @@ export class TypeOrmAwsConnectorService {
 		return this.parseNumberValue(field, ssmValue.value, ssmValue.lookup);
 	}
 
+	private readOptionalPositiveNumberFromConfigOrSsm(field: "rotationShutdownDrainTimeoutMs", rawValue: number | undefined): number | undefined {
+		if (rawValue !== undefined) {
+			const value: number = this.parseNumberValue(field, rawValue);
+
+			this.validatePositiveNumber(field, value);
+
+			return value;
+		}
+
+		const ssmValue: { lookup: IStructuredLookup; value: null | string } = this.getSsmValue(field);
+
+		if (ssmValue.value === null) {
+			return undefined;
+		}
+
+		const value: number = this.parseNumberValue(field, ssmValue.value, ssmValue.lookup);
+
+		this.validatePositiveNumber(field, value, ssmValue.lookup);
+
+		return value;
+	}
+
 	private readOptionalRelationLoadStrategyFromConfigOrSsm(rawValue: ERelationLoadStrategy | undefined, defaultValue: ERelationLoadStrategy): ERelationLoadStrategy {
 		if (rawValue !== undefined) {
 			return this.parseRelationLoadStrategyValue(rawValue);
@@ -355,5 +401,13 @@ export class TypeOrmAwsConnectorService {
 		}
 
 		return this.parseRawStringValue(this.getFieldLabel(field), ssmValue.value);
+	}
+
+	private validatePositiveNumber(field: "rotationIntervalMs" | "rotationShutdownDrainTimeoutMs", value: number, lookup?: IStructuredLookup): void {
+		if (value > 0) {
+			return;
+		}
+
+		throw new RangeError(`Invalid number value for "${this.getFieldLabel(field)}": "${String(value)}". Value must be a positive integer.${this.getLookupSuffix(lookup)}`);
 	}
 }

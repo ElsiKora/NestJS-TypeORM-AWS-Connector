@@ -11,6 +11,7 @@ export interface ITypeOrmAwsConnectorSsmLookups {
 	relationLoadStrategy?: IStructuredLookup;
 	rotationIntervalMs?: IStructuredLookup;
 	rotationIsEnabled?: IStructuredLookup;
+	rotationShutdownDrainTimeoutMs?: IStructuredLookup;
 	secretId?: IStructuredLookup;
 	shouldSynchronize?: IStructuredLookup;
 	type?: IStructuredLookup;

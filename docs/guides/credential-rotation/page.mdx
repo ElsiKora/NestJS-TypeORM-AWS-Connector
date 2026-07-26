@@ -1,0 +1,168 @@
+# Credential Rotation
+
+Connector 2 rotates PostgreSQL or MySQL credentials without replacing the Nest-injected live `DataSource`. It validates a replacement driver, promotes that driver for future query runners, and retires the previous driver only after its work drains.
+
+## Enable bounded rotation
+
+```typescript copy
+TypeOrmAwsConnectorModule.register({
+	entities: [UserEntity],
+	rotation: {
+		intervalMs: 3_600_000,
+		isEnabled: true,
+		shutdownDrainTimeoutMs: 15_000,
+	},
+});
+```
+
+`shutdownDrainTimeoutMs` has no default when rotation is enabled. It must resolve to a positive integer from either the raw property or the canonical SSM path:
+
+```text
+typeorm/rotation/shutdown-drain-timeout-ms
+```
+
+Override that lookup with `ssmLookups.rotationShutdownDrainTimeoutMs` when the application uses a different Parameter Store layout.
+
+## Understand the two-generation bound
+
+Only these states are allowed:
+
+```text
+steady:
+  current G0
+
+after promotion:
+  current G1
+  retiring G0
+
+while G0 is active:
+  later rotations are deferred
+
+after G0 drains:
+  G0 closes
+  a later interval may promote G2
+```
+
+The connector never creates a third live pool while one generation is retiring. Overlapping interval, manual, or emergency attempts coalesce through the same gate and emit `ROTATION_DEFERRED`.
+
+## Preserve query-runner and transaction affinity
+
+A query runner is assigned to the current generation when it is created. Promotion changes the driver used by future query runners; it does not mutate existing runners or manager-bound transactions.
+
+```text
+transaction A starts on G0
+G1 is promoted
+transaction A continues and commits on G0
+new transaction B starts on G1
+G0 closes after A releases its runner
+```
+
+This is why the retiring generation must remain available until every tracked runner releases.
+
+## Safely prepare the replacement
+
+Every rotation:
+
+1. performs a best-effort health query against the live connection;
+2. resolves fresh TypeORM options and credentials;
+3. rejects a PostgreSQL-to-MySQL or MySQL-to-PostgreSQL type change;
+4. initializes the replacement with `dropSchema`, `installExtensions`, `migrationsRun`, and `synchronize` disabled;
+5. verifies the replacement with `SELECT 1`;
+6. disconnects replacement-owned query-result cache state;
+7. promotes only the replacement driver while preserving the live `DataSource` identity.
+
+If credential resolution, initialization, or verification fails, the live generation remains current and the replacement is cleaned up. A failed retiring-driver close keeps that generation registered and defers later rotation until close succeeds.
+
+## Observe lifecycle events
+
+Pass an application-owned adapter through `rotation.onEvent`:
+
+```typescript copy
+import { Logger } from "@nestjs/common";
+import { ETypeOrmAwsConnectorRotationDeferredReason, ETypeOrmAwsConnectorRotationEvent, TypeOrmAwsConnectorModule, type TTypeOrmAwsConnectorRotationEvent } from "@elsikora/nestjs-typeorm-aws-connector";
+import { UserEntity } from "./entities/user.entity";
+
+const rotationLogger = new Logger("DatabaseRotation");
+
+const onRotationEvent = (event: TTypeOrmAwsConnectorRotationEvent): void => {
+	switch (event.type) {
+		case ETypeOrmAwsConnectorRotationEvent.DRAIN_TIMEOUT: {
+			rotationLogger.error("Database rotation drain timed out", event);
+			break;
+		}
+		case ETypeOrmAwsConnectorRotationEvent.GENERATION_RETIRED: {
+			rotationLogger.log("Database generation retired", event);
+			break;
+		}
+		case ETypeOrmAwsConnectorRotationEvent.ROTATION_DEFERRED: {
+			if (event.reason === ETypeOrmAwsConnectorRotationDeferredReason.RETIRING_GENERATION_CLOSE_FAILED) {
+				rotationLogger.error("Database generation close failed", event);
+			} else {
+				rotationLogger.warn("Database rotation deferred", event);
+			}
+			break;
+		}
+	}
+};
+
+TypeOrmAwsConnectorModule.register({
+	entities: [UserEntity],
+	rotation: {
+		isEnabled: true,
+		onEvent: onRotationEvent,
+		shutdownDrainTimeoutMs: 15_000,
+	},
+});
+```
+
+The callback may return `void` or `Promise<void>`, but the connector does not await the returned promise. Its synchronous body still runs inline and should stay small. Listener failures are caught and logged. Do not use this callback for retries, correctness, database mutation, or backpressure.
+
+Enrich events in the application telemetry adapter with runtime role, release identifier, environment, and instance identifier. Never attach database credentials.
+
+## Configure graceful shutdown
+
+Nest must receive and run shutdown hooks:
+
+```typescript copy
+const app = await NestFactory.create(AppModule);
+
+app.enableShutdownHooks();
+await app.listen(3000);
+```
+
+The connector then:
+
+1. marks shutdown in progress and stops the rotation interval;
+2. rejects creation of new query runners;
+3. waits up to `shutdownDrainTimeoutMs` for active query runners and an in-flight rotation;
+4. emits `DRAIN_TIMEOUT` with phase `DRAIN` if work remains;
+5. closes the current, pending replacement, and retiring generations best effort;
+6. emits `DRAIN_TIMEOUT` with phase `GENERATION_CLOSE` if close does not settle within another bounded phase;
+7. throws one `AggregateError` when drain timed out or any close failed.
+
+On drain timeout, active query runners are explicitly released before PostgreSQL or MySQL pools are force-closed. That is intentionally an unclean shutdown and must remain observable to the host.
+
+## Size the host termination budget
+
+`shutdownDrainTimeoutMs` bounds the drain phase and the generation-close phase independently. Configure the process or container termination deadline to exceed:
+
+```text
+(2 × shutdownDrainTimeoutMs)
++ other Nest shutdown hooks
++ logging and telemetry flush
++ operational margin
+```
+
+The connector timeout cannot compensate for an orchestrator that terminates the process earlier.
+
+## Choose runtime roles
+
+Enable periodic rotation only for long-running API and Worker services. Disable it for Bootstrap, schema migration, Maintenance, and other one-shot commands:
+
+```typescript copy
+rotation: {
+	isEnabled: false,
+}
+```
+
+Rotation state is local to each process because each process owns its own TypeORM pool. Central logs and metrics aggregate events across replicas; the event callback is not a cross-instance coordinator.
