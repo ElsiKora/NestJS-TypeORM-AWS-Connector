@@ -1,10 +1,10 @@
 {
 	"name": "@elsikora/nestjs-typeorm-aws-connector",
 	"version": "1.4.1",
-	"description": "NestJS application configuration with AWS Parameter Store and TypeORM",
-	"homepage": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector#readme",
+	"description": "NestJS TypeORM connector for AWS SSM and Secrets Manager with bounded credential rotation",
+	"homepage": "https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector#readme",
 	"bugs": {
-		"url": "https://github.com/ElsiKora/NestJS-AWS-TypeORM-Connector/issues"
+		"url": "https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/issues"
 	},
 	"repository": {
 		"type": "git",

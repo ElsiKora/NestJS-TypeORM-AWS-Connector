@@ -1,0 +1,78 @@
+# Getting Started
+
+This guide shows the minimal setup for the Connector 2 contract.
+
+## Installation
+
+Use a 2.x-only range. `^2.0.0-0` can select a 2.0 prerelease and later compatible stable 2.x releases, but cannot silently resolve Connector 1.x. Before the first 2.0 prerelease is published, this range intentionally fails instead of installing 1.x.
+
+```bash copy
+npm install @elsikora/nestjs-typeorm-aws-connector@^2.0.0-0 @aws-sdk/client-ssm @nestjs/common @nestjs/core @nestjs/typeorm typeorm
+```
+
+## Register Parameter Store
+
+Register `ParameterStoreConfigModule` before the connector. The connector uses its structured lookup context to resolve SSM values:
+
+```typescript copy
+ParameterStoreConfigModule.registerAsync({
+	imports: [ConfigModule],
+	inject: [ConfigService],
+	useFactory: (configService: ConfigService) => ({
+		application: configService.getOrThrow<string>("APPLICATION"),
+		config: {
+			region: configService.getOrThrow<string>("AWS_REGION"),
+		},
+		environment: configService.getOrThrow<string>("ENVIRONMENT"),
+		instanceName: "my-api",
+		namespace: ENamespace.AWS_ECS_FARGATE,
+		shouldDecryptParameters: true,
+	}),
+});
+```
+
+## Register the connector and TypeORM
+
+The connector resolves `DataSourceOptions`; `TypeOrmModule` remains the owner that initializes the live `DataSource`:
+
+```typescript copy
+@Module({
+	imports: [
+		TypeOrmModule.forRootAsync({
+			imports: [
+				TypeOrmAwsConnectorModule.register({
+					entities: [UserEntity],
+					rotation: {
+						isEnabled: false,
+					},
+				}),
+			],
+			inject: [TypeOrmAwsConnectorService],
+			useFactory: async (connectorService: TypeOrmAwsConnectorService) => connectorService.getTypeOrmOptions(),
+		}),
+	],
+})
+export class DatabaseModule {}
+```
+
+Set `rotation.isEnabled: false` for one-shot processes such as Bootstrap, migrations, and Maintenance. Long-running API and Worker processes can enable bounded rotation by following the [Credential Rotation guide](/docs/nestjs-typeorm-aws-connector/guides/credential-rotation).
+
+## Enable process shutdown hooks
+
+Long-running services must let Nest run `BeforeApplicationShutdown` when the process receives `SIGTERM`:
+
+```typescript copy
+const app = await NestFactory.create(AppModule);
+
+app.enableShutdownHooks();
+await app.listen(3000);
+```
+
+## Verify installation
+
+```bash copy
+npm ls @elsikora/nestjs-typeorm-aws-connector typeorm
+npm run build
+```
+
+Then run the consuming application's own startup, transaction, and shutdown tests. Script names vary by application.

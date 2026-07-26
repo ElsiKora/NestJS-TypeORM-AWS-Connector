@@ -1,0 +1,100 @@
+# Rotation Events
+
+Connector 2 exposes one discriminated event union through `rotation.onEvent`:
+
+```typescript copy
+type TTypeOrmAwsConnectorRotationEvent = ITypeOrmAwsConnectorDrainTimeoutEvent | ITypeOrmAwsConnectorGenerationRetiredEvent | ITypeOrmAwsConnectorRotationDeferredEvent;
+
+type TTypeOrmAwsConnectorRotationEventListener = (event: TTypeOrmAwsConnectorRotationEvent) => Promise<void> | void;
+```
+
+## Delivery contract
+
+- Events are frozen before delivery.
+- Payloads contain generation and lifecycle metadata, never credentials.
+- The listener may be synchronous or asynchronous.
+- The connector does not await listener completion.
+- Synchronous throws and asynchronous rejections are logged and isolated.
+- Listener success or failure never changes rotation, retirement, or shutdown behavior.
+
+Do not use the listener for database writes, retries, resource ownership, ordering-sensitive correctness, or backpressure.
+
+## `ROTATION_DEFERRED`
+
+```typescript copy
+interface ITypeOrmAwsConnectorRotationDeferredEvent {
+	readonly currentGeneration: number;
+	readonly reason: ETypeOrmAwsConnectorRotationDeferredReason;
+	readonly retiringGeneration: null | number;
+	readonly retiringGenerationActiveQueryRunnerCount: number;
+	readonly type: ETypeOrmAwsConnectorRotationEvent.ROTATION_DEFERRED;
+}
+```
+
+Deferred reasons:
+
+- `DATA_SOURCE_NOT_INITIALIZED`: the live `DataSource` is not ready.
+- `RETIRING_GENERATION_ACTIVE`: the one retiring generation still owns active query runners.
+- `RETIRING_GENERATION_CLOSE_FAILED`: the retiring driver could not close; later promotion remains blocked.
+- `ROTATION_IN_PROGRESS`: another interval, manual, or emergency rotation already owns the replacement pipeline.
+- `SHUTDOWN_IN_PROGRESS`: shutdown stopped admission before promotion.
+
+`ROTATION_IN_PROGRESS` and `RETIRING_GENERATION_ACTIVE` are expected coalescing. The other reasons are non-queued skips caused by an unavailable data source, a failed retiring-generation close, or shutdown already being in progress. A later interval may try again after the blocking state clears.
+
+## `GENERATION_RETIRED`
+
+```typescript copy
+interface ITypeOrmAwsConnectorGenerationRetiredEvent {
+	readonly currentGeneration: number;
+	readonly generation: number;
+	readonly isForced: boolean;
+	readonly type: ETypeOrmAwsConnectorRotationEvent.GENERATION_RETIRED;
+}
+```
+
+`isForced` is `false` for a normally drained generation and `true` when shutdown timeout required explicit runner release and forced cleanup. The event is emitted only after that generation closes successfully.
+
+## `DRAIN_TIMEOUT`
+
+```typescript copy
+interface ITypeOrmAwsConnectorDrainTimeoutEvent {
+	readonly activeQueryRunnerCount: number;
+	readonly currentGeneration: number;
+	readonly phase: ETypeOrmAwsConnectorDrainTimeoutPhase;
+	readonly retiringGeneration: null | number;
+	readonly shutdownDrainTimeoutMs: number;
+	readonly type: ETypeOrmAwsConnectorRotationEvent.DRAIN_TIMEOUT;
+}
+```
+
+Timeout phases:
+
+- `DRAIN`: an in-flight rotation or active query runners did not settle within the drain phase.
+- `GENERATION_CLOSE`: best-effort current, pending, or retiring generation close did not settle within the close phase.
+
+A timeout event is observability evidence, not the error itself. The connector also collects timeout and close failures and rejects shutdown with one `AggregateError`.
+
+## Exhaustive handling
+
+```typescript copy
+const onRotationEvent = (event: TTypeOrmAwsConnectorRotationEvent): void => {
+	switch (event.type) {
+		case ETypeOrmAwsConnectorRotationEvent.DRAIN_TIMEOUT:
+			rotationLogger.error(event);
+			return;
+		case ETypeOrmAwsConnectorRotationEvent.GENERATION_RETIRED:
+			rotationLogger.log(event);
+			return;
+		case ETypeOrmAwsConnectorRotationEvent.ROTATION_DEFERRED:
+			rotationLogger.warn(event);
+			return;
+		default: {
+			const exhaustiveEvent: never = event;
+
+			return exhaustiveEvent;
+		}
+	}
+};
+```
+
+For multiple connector registrations, use a closure or separate listener to enrich events with the owning connection name, runtime role, environment, release, and instance metadata.

@@ -1,0 +1,104 @@
+# Configuration
+
+Use `TypeOrmAwsConnectorModule.register()` for static options or `registerAsync()` for a factory. Both consume the same `ITypeOrmAwsConnectorConfig`; async registration additionally accepts `imports`, `inject`, and `dataSourceToken`.
+
+## Database options
+
+Required after raw and SSM resolution:
+
+- `databaseName`;
+- `host`;
+- `port`;
+- `secretId`, unless raw `username` and `password` satisfy credential resolution;
+- `type`;
+- `entities` from the consuming application.
+
+Optional tuning fields:
+
+- `connectionTimeoutMs`, default `30_000`;
+- `idleTimeoutMs`, default `30_000`;
+- `isVerbose`, default `false`;
+- `poolSize`, default `10`;
+- `relationLoadStrategy`, default `query`;
+- `shouldSynchronize`, default `false`;
+- raw `username` and `password`;
+- `ssmLookupDefaults` and field-level `ssmLookups`.
+
+The connector supports rotation only for PostgreSQL and MySQL. A rotation cannot change the live data-source type.
+
+## Rotation options
+
+```typescript copy
+type TDatabaseConfigRotation = {
+	intervalMs?: number;
+	isEnabled?: boolean;
+	onEvent?: TTypeOrmAwsConnectorRotationEventListener;
+	shutdownDrainTimeoutMs?: number;
+};
+```
+
+- `isEnabled` defaults to `false`.
+- `intervalMs` defaults to `3_600_000` and must resolve to a positive integer.
+- `shutdownDrainTimeoutMs` has no enabled-mode default. It must resolve to a positive integer whenever `isEnabled` resolves to `true`.
+- `onEvent` accepts a synchronous or asynchronous package-neutral listener. The connector invokes it without awaiting completion and isolates listener failures.
+
+The raw timeout property is optional because the value may come from SSM. The resolved rotation config is discriminated: enabled rotation always contains a numeric timeout; disabled rotation may omit it.
+
+## Resolution priority
+
+Each field resolves in this order:
+
+1. raw module option;
+2. field-level or canonical structured SSM lookup;
+3. built-in default, only for optional fields.
+
+Missing required fields and malformed boolean, enum, string, or integer values fail with lookup context.
+
+## Canonical rotation SSM paths
+
+```text
+rotation.isEnabled:
+  typeorm/rotation/enabled
+
+rotation.intervalMs:
+  typeorm/rotation/interval-ms
+
+rotation.shutdownDrainTimeoutMs:
+  typeorm/rotation/shutdown-drain-timeout-ms
+```
+
+Override any of them:
+
+```typescript copy
+ssmLookups: {
+	rotationIntervalMs: {
+		path: ["database", "rotation", "interval-ms"],
+	},
+	rotationIsEnabled: {
+		path: ["database", "rotation", "enabled"],
+	},
+	rotationShutdownDrainTimeoutMs: {
+		path: ["database", "rotation", "shutdown-drain-timeout-ms"],
+	},
+}
+```
+
+These lookups inherit omitted application, environment, instance, namespace, region, and decryption properties from `ssmLookupDefaults` and `ParameterStoreConfigModule`.
+
+## Named data sources
+
+Use `dataSourceToken` when one Nest application owns multiple TypeORM connections:
+
+```typescript copy
+TypeOrmAwsConnectorModule.registerAsync({
+	dataSourceToken: getDataSourceToken("provider"),
+	imports: [ConfigModule],
+	inject: [ConfigService],
+	useFactory: (configService: ConfigService) => ({
+		entities: [ProviderEntity],
+		poolSize: configService.get<number>("PROVIDER_DB_POOL_SIZE", 10),
+	}),
+});
+```
+
+Each registration owns an independent interval, generation state, and event callback when rotation is enabled for that connection.
