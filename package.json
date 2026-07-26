@@ -41,7 +41,7 @@
 		"lint:watch": "npx eslint-watch ./",
 		"prepare": "husky",
 		"release": "semantic-release",
-		"test": "npm run build && node --test test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
+		"test": "npm run build && node --test test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
 	},
 	"config": {
 		"commitizen": {

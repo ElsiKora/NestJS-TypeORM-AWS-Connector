@@ -1,0 +1,3 @@
+import type { ITypeOrmAwsConnectorDrainTimeoutEvent, ITypeOrmAwsConnectorGenerationRetiredEvent, ITypeOrmAwsConnectorRotationDeferredEvent } from "@shared/interface/typeorm-aws-connector/rotation";
+
+export type TTypeOrmAwsConnectorRotationEvent = ITypeOrmAwsConnectorDrainTimeoutEvent | ITypeOrmAwsConnectorGenerationRetiredEvent | ITypeOrmAwsConnectorRotationDeferredEvent;

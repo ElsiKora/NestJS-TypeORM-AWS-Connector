@@ -5,3 +5,4 @@ export type * from "./shared/interface/aws";
 export type * from "./shared/interface/typeorm-aws-connector";
 export * from "./shared/provider/typeorm-aws-connector";
 export type * from "./shared/type/database";
+export type * from "./shared/type/typeorm-aws-connector";
