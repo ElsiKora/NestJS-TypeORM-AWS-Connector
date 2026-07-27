@@ -1,0 +1,64 @@
+# Connector 2.0 Release Notes
+
+Connector 2.0 makes database credential rotation and process shutdown bounded and observable.
+
+This page records the intended 2.0 source contract. Semantic-release owns the exact prerelease and stable version, while `CHANGELOG.md` and npm registry metadata remain authoritative publication evidence. This page by itself does not claim that Connector 2.0 has been published.
+
+## Breaking changes
+
+- Rotation-enabled services must resolve a positive integer `rotation.shutdownDrainTimeoutMs`; there is no default.
+- Shutdown can reject with `AggregateError` when active work does not drain or generation cleanup fails.
+- Repeated interval, manual, and emergency attempts no longer promote while one generation is retiring.
+- Applications must not assume that each interval creates a new database generation.
+
+## Rotation lifecycle
+
+- At most one current and one retiring generation exist.
+- Existing query runners and manager-bound transactions stay on their original generation.
+- New query runners use the promoted generation.
+- The retiring generation closes after its tracked runners release.
+- A retiring close failure blocks later promotion instead of allowing pool accumulation.
+- Replacement initialization disables schema drop, extension installation, migrations, and synchronization.
+- PostgreSQL and MySQL forced shutdown explicitly release checked-out query runners before pool close.
+
+## Observability
+
+The package root exports:
+
+- `ETypeOrmAwsConnectorRotationEvent`;
+- `ETypeOrmAwsConnectorRotationDeferredReason`;
+- `ETypeOrmAwsConnectorDrainTimeoutPhase`;
+- `ITypeOrmAwsConnectorRotationDeferredEvent`;
+- `ITypeOrmAwsConnectorGenerationRetiredEvent`;
+- `ITypeOrmAwsConnectorDrainTimeoutEvent`;
+- `TTypeOrmAwsConnectorRotationEvent`;
+- `TTypeOrmAwsConnectorRotationEventListener`.
+
+Pass a listener through `rotation.onEvent`. Events are frozen, contain no credentials, and do not depend on Nest EventEmitter or RxJS.
+
+## Configuration
+
+The canonical Parameter Store lookup is:
+
+```text
+typeorm/rotation/shutdown-drain-timeout-ms
+```
+
+Override it through `ssmLookups.rotationShutdownDrainTimeoutMs`.
+
+## Package verification
+
+The 2.0 implementation suite covers:
+
+- long transaction affinity across several intervals;
+- current-plus-one-retiring pool bound;
+- overlapping interval coalescing;
+- credential, initialization, verification, and retiring-close failure;
+- clean and timeout shutdown;
+- aggregate current, pending, and retiring close failures;
+- shutdown races during credential fetch, replacement initialization, and verification;
+- safe replacement schema and cache ownership;
+- failed release retry and exact accounting;
+- PostgreSQL-shaped and MySQL-shaped forced close.
+
+Consumer-specific role pools, database capacity, shutdown deadlines, and telemetry routing remain integration responsibilities.

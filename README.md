@@ -16,11 +16,13 @@
 ## 💡 Highlights
 
 - 🔐 Zero-credential codebase — resolves all database config from AWS SSM Parameter Store & Secrets Manager at runtime
-- ♻️ Built-in automatic credential rotation with health checks, staged driver promotion, and graceful old-pool drainage
+- ♻️ Bounded automatic credential rotation with health checks, transaction affinity, and at most one retiring pool
+- ⏱️ Bounded shutdown with explicit drain timeout, aggregate failure, and package-neutral lifecycle events
 - 🏗️ Split-source architecture — infra teams own host/port/secrets, app teams own pool/timeout/sync settings independently
 - 📦 Dual ESM/CJS module output with full TypeScript declarations and broad NestJS compatibility (v8–v11)
 
 ## 📚 Table of Contents
+
 - [Description](#-description)
 - [Tech Stack](#-tech-stack)
 - [Features](#-features)
@@ -29,15 +31,17 @@
 - [Prerequisites](#-prerequisites)
 - [Installation](#-installation)
 - [Usage](#-usage)
+- [Migrating to 2.0](#migrating-from-1x)
 - [Roadmap](#-roadmap)
 - [FAQ](#-faq)
 - [License](#-license)
 - [Acknowledgments](#-acknowledgments)
 
 ## 📖 Description
+
 **NestJS-TypeORM-AWS-Connector** is a production-grade NestJS module that eliminates the pain of managing database configuration in AWS-hosted applications. Instead of hardcoding credentials or juggling environment variables, this connector resolves your entire TypeORM `DataSourceOptions` from **AWS Systems Manager Parameter Store** and **AWS Secrets Manager** — with built-in credential rotation.
 
-In modern cloud-native architectures, database credentials are rotated regularly for security compliance. Traditional approaches break connections during rotation, causing downtime. This connector avoids destructive mid-run `DataSource` teardown by validating a replacement connection first, promoting the new driver for future query runners, and retiring the previous pool only after existing query runners drain.
+In modern cloud-native architectures, database credentials are rotated regularly for security compliance. Traditional approaches break connections during rotation, causing downtime. This connector avoids destructive mid-run `DataSource` teardown by validating a replacement connection first, promoting the new driver for future query runners, and retiring the previous pool only after existing query runners drain. It permits at most one current and one retiring generation; later intervals defer instead of growing the pool count.
 
 ### Real-World Use Cases
 
@@ -50,22 +54,26 @@ The connector uses a **split-source model**: infrastructure-owned parameters (ho
 
 ## 🛠️ Tech Stack
 
-| Category | Technologies |
-|----------|-------------|
-| **Language** | TypeScript |
-| **Runtime** | Node.js |
-| **Framework** | NestJS |
-| **ORM** | TypeORM |
-| **Cloud Services** | AWS SSM Parameter Store, AWS Secrets Manager |
-| **Build Tool** | Rollup |
-| **Linting** | ESLint, Prettier |
-| **CI/CD** | GitHub Actions, Semantic Release |
-| **Package Manager** | npm |
+| Category            | Technologies                                 |
+| ------------------- | -------------------------------------------- |
+| **Language**        | TypeScript                                   |
+| **Runtime**         | Node.js                                      |
+| **Framework**       | NestJS                                       |
+| **ORM**             | TypeORM                                      |
+| **Cloud Services**  | AWS SSM Parameter Store, AWS Secrets Manager |
+| **Build Tool**      | Rollup                                       |
+| **Linting**         | ESLint, Prettier                             |
+| **CI/CD**           | GitHub Actions, Semantic Release             |
+| **Package Manager** | npm                                          |
 
 ## 🚀 Features
+
 - ✨ ****AWS Parameter Store Integration** — Resolves database host, port, name, type, and tuning parameters from structured SSM paths with hierarchical namespace support**
 - ✨ ****AWS Secrets Manager Integration** — Fetches username/password credentials from Secrets Manager with proper error handling for missing or malformed secrets**
-- ✨ ****Automatic Credential Rotation** — Configurable interval-based rotation that validates a replacement connection before promoting it for future query runners**
+- ✨ ****Bounded Credential Rotation** — Validates a replacement before promotion and permits only the current pool plus one retiring pool**
+- ✨ ****Transaction Affinity** — Query runners and manager-bound transactions stay on the generation where they started**
+- ✨ ****Bounded Shutdown** — Stops new work, waits for active generations, then reports timeout or close failures as one aggregate error**
+- ✨ ****Rotation Events** — Reports deferred rotation, retired generations, and drain timeouts without a Nest EventEmitter dependency**
 - ✨ ****Emergency Recovery** — After 3 consecutive rotation failures, automatically retries recovery without destructively tearing down the live `DataSource`**
 - ✨ ****Connection Health Validation** — Validates both existing and new connections with `SELECT 1` queries before and after rotation**
 - ✨ ****Split-Source Configuration Model** — Infrastructure-owned settings (host, port, secret-id) use canonical AWS namespaces; app-owned settings use your module namespace**
@@ -140,11 +148,16 @@ sequenceDiagram
 NestJS-TypeORM-AWS-Connector/
 ├── .github/
 │   ├── workflows/
+│   │   ├── mirror-docs-to-docviewer.yml
 │   │   ├── mirror-to-codecommit.yml
 │   │   ├── qodana-quality-scan.yml
 │   │   ├── release.yml
 │   │   └── snyk-security-scan.yml
 │   └── dependabot.yml
+├── docs/
+│   ├── api-reference/
+│   ├── getting-started/
+│   └── guides/
 ├── src/
 │   ├── modules/
 │   │   └── typeorm-aws-connector/
@@ -175,33 +188,33 @@ NestJS-TypeORM-AWS-Connector/
 
 ## 📋 Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js >= 20.0.0
 - npm >= 9.0.0
 - @nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
 - @aws-sdk/client-ssm ^3.535.0
 - typeorm ^0.3.20
-- @elsikora/nestjs-aws-parameter-store-config ^2.0.1 (installed automatically)
+- @elsikora/nestjs-aws-parameter-store-config ^2.0.2 (installed automatically)
 - AWS credentials configured (IAM role, environment variables, or AWS CLI profile)
 
 ## 🛠 Installation
+
+These source docs describe the Connector 2 contract. Use a 2.x-only range so installation cannot silently fall back to Connector 1.x. Before the first 2.0 prerelease is published, this command intentionally fails.
+
 ```bash
 # Install the connector and its required peer dependencies
-npm install @elsikora/nestjs-typeorm-aws-connector @aws-sdk/client-ssm @nestjs/common typeorm
+npm install @elsikora/nestjs-typeorm-aws-connector@^2.0.0-0 @aws-sdk/client-ssm @nestjs/common typeorm
+```
 
-# The following are installed automatically as dependencies:
-# @aws-sdk/client-secrets-manager
-# @elsikora/nestjs-aws-parameter-store-config
-# @nestjs/config
-# @nestjs/schedule
-
+The connector installs `@aws-sdk/client-secrets-manager`, `@elsikora/nestjs-aws-parameter-store-config`, `@nestjs/config`, and `@nestjs/schedule` as direct dependencies.
 
 ### Verify Installation
 
-
+```bash
 npm ls @elsikora/nestjs-typeorm-aws-connector
 ```
 
 ## 💡 Usage
+
 ### Prerequisites: Register Parameter Store Config Module
 
 Before using the connector, register `ParameterStoreConfigModule` from `@elsikora/nestjs-aws-parameter-store-config`:
@@ -212,21 +225,21 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ENamespace, ParameterStoreConfigModule } from "@elsikora/nestjs-aws-parameter-store-config";
 
 @Module({
-  imports: [
-    ConfigModule.forRoot(),
-    ParameterStoreConfigModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        application: configService.getOrThrow<string>("APPLICATION"),
-        config: { region: configService.getOrThrow<string>("AWS_REGION") },
-        environment: configService.getOrThrow<string>("ENVIRONMENT"),
-        instanceName: "my-api",
-        namespace: ENamespace.AWS_ECS_FARGATE,
-        shouldDecryptParameters: true,
-      }),
-    }),
-  ],
+	imports: [
+		ConfigModule.forRoot(),
+		ParameterStoreConfigModule.registerAsync({
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				application: configService.getOrThrow<string>("APPLICATION"),
+				config: { region: configService.getOrThrow<string>("AWS_REGION") },
+				environment: configService.getOrThrow<string>("ENVIRONMENT"),
+				instanceName: "my-api",
+				namespace: ENamespace.AWS_ECS_FARGATE,
+				shouldDecryptParameters: true,
+			}),
+		}),
+	],
 })
 export class AppModule {}
 ```
@@ -238,26 +251,22 @@ export class AppModule {}
 ```typescript
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import {
-  TypeOrmAwsConnectorModule,
-  TypeOrmAwsConnectorService,
-} from "@elsikora/nestjs-typeorm-aws-connector";
+import { TypeOrmAwsConnectorModule, TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
 import { UserEntity } from "./entities/user.entity";
 
 @Module({
-  imports: [
-    // Register the connector with your entities
-    TypeOrmAwsConnectorModule.register({
-      entities: [UserEntity],
-    }),
-    // Wire it into TypeOrmModule
-    TypeOrmModule.forRootAsync({
-      imports: [TypeOrmAwsConnectorModule],
-      inject: [TypeOrmAwsConnectorService],
-      useFactory: async (connector: TypeOrmAwsConnectorService) =>
-        connector.getTypeOrmOptions(),
-    }),
-  ],
+	imports: [
+		// Register the connector with your entities
+		TypeOrmAwsConnectorModule.register({
+			entities: [UserEntity],
+		}),
+		// Wire it into TypeOrmModule
+		TypeOrmModule.forRootAsync({
+			imports: [TypeOrmAwsConnectorModule],
+			inject: [TypeOrmAwsConnectorService],
+			useFactory: async (connector: TypeOrmAwsConnectorService) => connector.getTypeOrmOptions(),
+		}),
+	],
 })
 export class DatabaseModule {}
 ```
@@ -273,28 +282,31 @@ import { ENamespace } from "@elsikora/nestjs-aws-parameter-store-config";
 import { TypeOrmAwsConnectorModule } from "@elsikora/nestjs-typeorm-aws-connector";
 
 TypeOrmAwsConnectorModule.register({
-  entities: [UserEntity],
-  ssmLookupDefaults: {
-    instanceName: "my-api",
-    namespace: ENamespace.AWS_ECS_FARGATE,
-  },
-  ssmLookups: {
-    secretId: {
-      instanceName: "database",
-      namespace: ENamespace.AWS_SECRETS_MANAGER,
-      path: ["secret-id"],
-    },
-    host: {
-      instanceName: "aurora-postgres",
-      namespace: ENamespace.AWS_RDS,
-      path: ["host"],
-    },
-    port: {
-      instanceName: "aurora-postgres",
-      namespace: ENamespace.AWS_RDS,
-      path: ["port"],
-    },
-  },
+	entities: [UserEntity],
+	ssmLookupDefaults: {
+		instanceName: "my-api",
+		namespace: ENamespace.AWS_ECS_FARGATE,
+	},
+	ssmLookups: {
+		secretId: {
+			instanceName: "database",
+			namespace: ENamespace.AWS_SECRETS_MANAGER,
+			path: ["secret-id"],
+		},
+		host: {
+			instanceName: "aurora-postgres",
+			namespace: ENamespace.AWS_RDS,
+			path: ["host"],
+		},
+		port: {
+			instanceName: "aurora-postgres",
+			namespace: ENamespace.AWS_RDS,
+			path: ["port"],
+		},
+		rotationShutdownDrainTimeoutMs: {
+			path: ["database", "rotation", "shutdown-drain-timeout-ms"],
+		},
+	},
 });
 ```
 
@@ -308,13 +320,13 @@ Bypass AWS entirely for local development:
 import { EDatabaseType } from "@elsikora/nestjs-typeorm-aws-connector";
 
 TypeOrmAwsConnectorModule.register({
-  entities: [UserEntity],
-  host: "127.0.0.1",
-  port: 5432,
-  username: "local-user",
-  password: "local-password",
-  databaseName: "mydb",
-  type: EDatabaseType.POSTGRES,
+	entities: [UserEntity],
+	host: "127.0.0.1",
+	port: 5432,
+	username: "local-user",
+	password: "local-password",
+	databaseName: "mydb",
+	type: EDatabaseType.POSTGRES,
 });
 ```
 
@@ -325,25 +337,76 @@ TypeOrmAwsConnectorModule.register({
 Enable automatic credential rotation for long-running services:
 
 ```typescript
+import { Logger } from "@nestjs/common";
+import { ETypeOrmAwsConnectorRotationEvent, TypeOrmAwsConnectorModule } from "@elsikora/nestjs-typeorm-aws-connector";
+
+const rotationLogger = new Logger("DatabaseRotation");
+
 TypeOrmAwsConnectorModule.register({
-  entities: [UserEntity],
-  rotation: {
-    isEnabled: true,
-    intervalMs: 3_600_000, // Rotate every hour
-  },
+	entities: [UserEntity],
+	rotation: {
+		isEnabled: true,
+		intervalMs: 3_600_000, // Rotate every hour
+		shutdownDrainTimeoutMs: 15_000,
+		onEvent: (event) => {
+			switch (event.type) {
+				case ETypeOrmAwsConnectorRotationEvent.DRAIN_TIMEOUT: {
+					rotationLogger.error("Database rotation drain timed out", event);
+					break;
+				}
+				case ETypeOrmAwsConnectorRotationEvent.GENERATION_RETIRED: {
+					rotationLogger.log("Database generation retired", event);
+					break;
+				}
+				case ETypeOrmAwsConnectorRotationEvent.ROTATION_DEFERRED: {
+					rotationLogger.warn("Database rotation deferred", event);
+					break;
+				}
+			}
+		},
+	},
 });
 ```
 
+When rotation is enabled, `shutdownDrainTimeoutMs` is required and must be a positive integer. Provide it directly or through the canonical SSM path `typeorm/rotation/shutdown-drain-timeout-ms`; the connector does not invent a shutdown default.
+
 The rotation service will:
+
 1. Validate current connection health
 2. Fetch fresh credentials from AWS Secrets Manager
-3. Create and initialize a replacement `DataSource` with the updated credentials
+3. Create a replacement `DataSource` with schema synchronization, migrations, schema drop, and extension installation disabled
 4. Verify the replacement connection with a `SELECT 1` query
 5. Promote the replacement driver for future query runners without destroying the live `DataSource`
-6. Dispose the previous pool only after query runners created before the promotion are released
-7. Attempt emergency recovery after 3 consecutive failures
+6. Keep query runners and manager-bound transactions on the generation where they started
+7. Defer later intervals until the one retiring generation drains and closes
+8. Attempt emergency recovery through the same bounded rotation gate after 3 consecutive failures
 
-Rotation is intended for long-lived services. For one-shot jobs, migrations, or explicit CLI tasks, keep `rotation.isEnabled` disabled so the connector does not register a background interval.
+At most two database pools exist during rotation: the current generation and one retiring generation. Overlapping intervals coalesce instead of creating queued replacements.
+
+`onEvent` is an optional, package-neutral observability callback. It can return `void` or `Promise<void>`; its returned promise is not awaited, and its synchronous body should stay small. It must not own correctness or database writes. Listener failures are logged and isolated from the rotation lifecycle. Event objects are frozen and contain no credentials.
+
+| Event                | Meaning                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `ROTATION_DEFERRED`  | Rotation was skipped because another rotation, retirement, or shutdown prevents promotion |
+| `GENERATION_RETIRED` | A current or retiring generation closed successfully                                      |
+| `DRAIN_TIMEOUT`      | Active work did not drain, or generation close did not settle, in time                    |
+
+Rotation is intended for long-lived services. For one-shot jobs, migrations, Bootstrap, or explicit CLI tasks, keep `rotation.isEnabled` disabled so the connector does not register a background interval.
+
+### Shutdown Lifecycle
+
+Enable Nest shutdown hooks in long-running applications so `SIGTERM` reaches the connector:
+
+```typescript
+const app = await NestFactory.create(AppModule);
+
+app.enableShutdownHooks();
+await app.listen(3000);
+```
+
+During shutdown, the connector removes its interval, refuses new query runners, waits up to `shutdownDrainTimeoutMs` for active work, and then closes the current, pending, and retiring generations. If drain or close does not settle, it emits `DRAIN_TIMEOUT`, performs best-effort cleanup, and rejects with one `AggregateError`; callers and orchestrators must treat that shutdown as unclean.
+
+Drain and generation close each have a bounded phase, so the host termination budget must exceed approximately `2 × shutdownDrainTimeoutMs` plus the surrounding Nest shutdown work and an operational margin.
 
 ---
 
@@ -351,17 +414,28 @@ Rotation is intended for long-lived services. For one-shot jobs, migrations, or 
 
 ```typescript
 TypeOrmAwsConnectorModule.registerAsync({
-  imports: [ConfigModule],
-  inject: [ConfigService],
-  useFactory: (configService: ConfigService) => ({
-    entities: [UserEntity],
-    rotation: {
-      isEnabled: configService.get<boolean>("DB_ROTATION_ENABLED", false),
-      intervalMs: configService.get<number>("DB_ROTATION_INTERVAL", 3_600_000),
-    },
-  }),
+	imports: [ConfigModule],
+	inject: [ConfigService],
+	useFactory: (configService: ConfigService) => {
+		const isRotationEnabled = configService.get<boolean>("DB_ROTATION_ENABLED", false);
+
+		return {
+			entities: [UserEntity],
+			rotation: {
+				intervalMs: configService.get<number>("DB_ROTATION_INTERVAL", 3_600_000),
+				isEnabled: isRotationEnabled,
+				...(isRotationEnabled
+					? {
+							shutdownDrainTimeoutMs: configService.getOrThrow<number>("DB_ROTATION_SHUTDOWN_DRAIN_TIMEOUT"),
+						}
+					: {}),
+			},
+		};
+	},
 });
 ```
+
+Omit the raw `shutdownDrainTimeoutMs` property when the enabled service should resolve it from Parameter Store instead of `ConfigService`.
 
 ---
 
@@ -373,12 +447,12 @@ Register the connector separately inside each Nest database module that owns a s
 import { getDataSourceToken } from "@nestjs/typeorm";
 
 TypeOrmAwsConnectorModule.registerAsync({
-  dataSourceToken: getDataSourceToken("provider"),
-  imports: [ConfigModule],
-  inject: [ConfigService],
-  useFactory: (configService: ConfigService) => ({
-    entities: [ProviderEntity],
-  }),
+	dataSourceToken: getDataSourceToken("provider"),
+	imports: [ConfigModule],
+	inject: [ConfigService],
+	useFactory: (configService: ConfigService) => ({
+		entities: [ProviderEntity],
+	}),
 });
 ```
 
@@ -394,27 +468,35 @@ For each configuration field, values are resolved in this order:
 2. **SSM Parameter Store lookup** (via structured lookup)
 3. **Built-in default** (only for optional tuning fields like `poolSize`, `connectionTimeoutMs`)
 
-Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw explicit errors if not resolvable.
+Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw explicit errors if not resolvable. When rotation resolves as enabled, `rotation.shutdownDrainTimeoutMs` is also required. Explicit `rotation` properties take priority over their structured SSM lookups.
+
+### Migrating from 1.x
+
+Connector 2.0 intentionally removes the unbounded rotation and force-only shutdown contract. Existing applications that enable rotation must add a positive `rotation.shutdownDrainTimeoutMs`, enable Nest shutdown hooks for process signals, and decide how to surface the new structured rotation events.
+
+See the complete [Migrating to 2.0 guide](docs/guides/migrating-to-2-0/page.mdx) before upgrading.
 
 ## 🛣 Roadmap
 
 <details>
 <summary>Click to expand</summary>
 
-| Task / Feature | Status |
-|---|---|
-| Dual ESM/CJS module output | ✅ Done |
-| AWS Secrets Manager credential resolution | ✅ Done |
-| Automatic credential rotation with staged driver promotion | ✅ Done |
-| Emergency recovery after consecutive rotation failures | ✅ Done |
-| Split-source configuration model (infra vs app namespaces) | ✅ Done |
-| Raw value overrides for local development | ✅ Done |
-| Async module registration with factory pattern | ✅ Done |
-| Semantic release with prerelease channel | ✅ Done |
+| Task / Feature                                                     | Status         |
+| ------------------------------------------------------------------ | -------------- |
+| Dual ESM/CJS module output                                         | ✅ Done        |
+| AWS Secrets Manager credential resolution                          | ✅ Done        |
+| Automatic credential rotation with staged driver promotion         | ✅ Done        |
+| Bounded current-plus-one-retiring generation lifecycle             | ✅ Done        |
+| Structured package-neutral rotation lifecycle events               | ✅ Done        |
+| Emergency recovery after consecutive rotation failures             | ✅ Done        |
+| Split-source configuration model (infra vs app namespaces)         | ✅ Done        |
+| Raw value overrides for local development                          | ✅ Done        |
+| Async module registration with factory pattern                     | ✅ Done        |
+| Semantic release with prerelease channel                           | ✅ Done        |
 | Support for additional database types (e.g., MariaDB, CockroachDB) | 🚧 In Progress |
-| Connection pool monitoring and metrics export | 🚧 In Progress |
-| Read replica support with separate SSM lookups | 🚧 In Progress |
-| Integration test suite with LocalStack | 🚧 In Progress |
+| Connection pool monitoring and metrics export                      | 🚧 In Progress |
+| Read replica support with separate SSM lookups                     | 🚧 In Progress |
+| Integration test suite with LocalStack                             | 🚧 In Progress |
 
 </details>
 
@@ -425,36 +507,38 @@ Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw expli
 
 ### ❓ Frequently Asked Questions
 
-**Q: Do I need AWS credentials to use this locally?**
-A: No! Use raw value overrides to bypass AWS entirely during local development. Set `host`, `port`, `username`, `password`, `databaseName`, and `type` directly in the config.
+**Q: Do I need AWS credentials to use this locally?** A: No! Use raw value overrides to bypass AWS entirely during local development. Set `host`, `port`, `username`, `password`, `databaseName`, and `type` directly in the config.
 
-**Q: Which databases are supported?**
-A: Currently PostgreSQL (`EDatabaseType.POSTGRES`) and MySQL (`EDatabaseType.MYSQL`). The `type` field is resolved from SSM or set directly.
+**Q: Which databases are supported?** A: Currently PostgreSQL (`EDatabaseType.POSTGRES`) and MySQL (`EDatabaseType.MYSQL`). The `type` field is resolved from SSM or set directly.
 
-**Q: What happens if AWS Secrets Manager is unreachable during rotation?**
-A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
+**Q: What happens if AWS Secrets Manager is unreachable during rotation?** A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
 
-**Q: Can I use this without `@elsikora/nestjs-aws-parameter-store-config`?**
-A: No. The connector depends on `ParameterStoreConfigService.get()` for SSM lookups. You must register `ParameterStoreConfigModule` first. However, if you provide raw values for all fields, SSM lookups won't actually be invoked.
+**Q: Can I use this without `@elsikora/nestjs-aws-parameter-store-config`?** A: No. The connector depends on `ParameterStoreConfigService.get()` for SSM lookups. You must register `ParameterStoreConfigModule` first. However, if you provide raw values for all fields, SSM lookups won't actually be invoked.
 
-**Q: How does the split-source model work?**
-A: Infrastructure-owned fields like `host`, `port`, and `secretId` default to canonical AWS namespaces (e.g., `aws-rds/aurora-postgres`). Application-owned fields like `poolSize` and `connectionTimeoutMs` use your app's namespace (e.g., `aws-ecs-fargate/my-api`). You can override any lookup.
+**Q: How does the split-source model work?** A: Infrastructure-owned fields like `host`, `port`, and `secretId` default to canonical AWS namespaces (e.g., `aws-rds/aurora-postgres`). Application-owned fields like `poolSize` and `connectionTimeoutMs` use your app's namespace (e.g., `aws-ecs-fargate/my-api`). You can override any lookup.
 
-**Q: Is this compatible with NestJS v8?**
-A: Yes. The peer dependency accepts `@nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0`.
+**Q: Is this compatible with NestJS v8?** A: Yes. The peer dependency accepts `@nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0`.
 
-**Q: How do I disable credential rotation?**
-A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely. This is the recommended mode for one-shot jobs, migrations, and other short-lived processes.
+**Q: How do I disable credential rotation?** A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely. This is the recommended mode for one-shot jobs, migrations, and other short-lived processes.
 
-**Q: What's the default rotation interval?**
-A: 1 hour (3,600,000 ms). Override it via `rotation.intervalMs` or the SSM path `typeorm/rotation/interval-ms`.
+**Q: What's the default rotation interval?** A: 1 hour (3,600,000 ms). Override it via `rotation.intervalMs` or the SSM path `typeorm/rotation/interval-ms`.
+
+**Q: Is there a default shutdown drain timeout?** A: No. Rotation-enabled services must provide a positive integer through `rotation.shutdownDrainTimeoutMs` or `typeorm/rotation/shutdown-drain-timeout-ms`. One-shot services with rotation disabled do not require it.
+
+**Q: Can several rotations create several old pools?** A: No. The connector permits one current and at most one retiring generation. Further intervals emit `ROTATION_DEFERRED` until the retiring generation closes.
+
+**Q: What happens to a transaction during credential rotation?** A: Its query runner remains attached to the generation where it started. New query runners use the promoted generation, and ordinary rotation waits for the old pool's runners to release without applying the shutdown timeout. Forced release after `shutdownDrainTimeoutMs` occurs only during process shutdown.
+
+**Q: Does `onEvent` use Nest EventEmitter?** A: No. It is an optional callback in the rotation configuration. Use it to bridge structured events into your logger, metrics, or error reporting system without adding `@nestjs/event-emitter`.
 
 </details>
 
 ## 🔒 License
+
 This project is licensed under **MIT**.
 
 ## 🙏 Acknowledgments
+
 - **[NestJS](https://nestjs.com/)** — The progressive Node.js framework that makes building server-side applications a joy
 - **[TypeORM](https://typeorm.io/)** — The ORM that powers the database layer with decorator-based entity definitions
 - **[AWS SDK for JavaScript v3](https://github.com/aws/aws-sdk-js-v3)** — Modular AWS SDK used for SSM and Secrets Manager client operations

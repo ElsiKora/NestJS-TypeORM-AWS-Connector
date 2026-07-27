@@ -1,0 +1,38 @@
+---
+title: NestJS TypeORM AWS Connector
+asIndexPage: true
+---
+
+# Introduction
+
+**NestJS TypeORM AWS Connector** resolves TypeORM configuration from AWS Systems Manager Parameter Store and credentials from AWS Secrets Manager while keeping one stable Nest-injected `DataSource`.
+
+Connector 2 adds a bounded credential-rotation lifecycle:
+
+- one current and at most one retiring pool;
+- query-runner and manager-bound transaction affinity;
+- coalesced intervals instead of queued replacement pools;
+- a required positive shutdown drain timeout when rotation is enabled;
+- package-neutral deferred, retired, and timeout events;
+- bounded best-effort shutdown with aggregate failure reporting.
+
+## Where to start
+
+- [Getting Started](/docs/nestjs-typeorm-aws-connector/getting-started)
+- [Credential Rotation](/docs/nestjs-typeorm-aws-connector/guides/credential-rotation)
+- [Migrating to 2.0](/docs/nestjs-typeorm-aws-connector/guides/migrating-to-2-0)
+- [2.0 Release Notes](/docs/nestjs-typeorm-aws-connector/guides/release-notes-2-0)
+- [Configuration Reference](/docs/nestjs-typeorm-aws-connector/api-reference/configuration)
+- [Rotation Events](/docs/nestjs-typeorm-aws-connector/api-reference/rotation-events)
+
+## Ownership boundary
+
+The connector owns AWS lookup, replacement verification, driver promotion, generation accounting, and shutdown cleanup. The consuming application owns:
+
+- the rotation interval and shutdown budget;
+- whether each runtime role enables periodic rotation;
+- the observability adapter passed through `rotation.onEvent`;
+- host-orchestrator termination budgets and alert policy;
+- database capacity for the temporary current-plus-retiring overlap.
+
+The event callback is observability only. It must not control rotation, perform database writes, or contain credentials.

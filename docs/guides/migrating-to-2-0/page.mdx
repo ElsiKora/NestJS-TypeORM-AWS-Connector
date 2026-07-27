@@ -1,0 +1,136 @@
+# Migrating to 2.0
+
+Connector 2 replaces the Connector 1.x unbounded retiring-pool and force-only shutdown behavior. There is no legacy rotation mode.
+
+## Install the 2.x line
+
+Use a 2.x-only range. It can select a 2.0 prerelease and later stable 2.x versions without resolving Connector 1.x. Before the first 2.0 prerelease is published, this range intentionally fails instead of installing 1.x:
+
+```bash copy
+npm install @elsikora/nestjs-typeorm-aws-connector@^2.0.0-0
+npm ls @elsikora/nestjs-typeorm-aws-connector typeorm
+```
+
+## Add the required shutdown timeout
+
+Connector 1.x:
+
+```typescript copy
+rotation: {
+	isEnabled: true,
+	intervalMs: 3_600_000,
+}
+```
+
+Connector 2:
+
+```typescript copy
+rotation: {
+	isEnabled: true,
+	intervalMs: 3_600_000,
+	shutdownDrainTimeoutMs: 15_000,
+}
+```
+
+When rotation resolves as enabled, `shutdownDrainTimeoutMs` must be a positive integer. There is no compatibility default. The application may omit the raw property only when the value is available through SSM:
+
+```text
+typeorm/rotation/shutdown-drain-timeout-ms
+```
+
+Use `ssmLookups.rotationShutdownDrainTimeoutMs` to override the canonical lookup.
+
+Rotation-disabled one-shot processes do not require the timeout:
+
+```typescript copy
+rotation: {
+	isEnabled: false,
+}
+```
+
+## Enable Nest shutdown hooks
+
+Connector 2 owns bounded cleanup through `BeforeApplicationShutdown`. Enable process-signal hooks in long-running applications:
+
+```typescript copy
+const app = await NestFactory.create(AppModule);
+
+app.enableShutdownHooks();
+await app.listen(3000);
+```
+
+Size the host termination budget above approximately `2 × shutdownDrainTimeoutMs`, other Nest shutdown hooks, telemetry flush, and an operational margin.
+
+## Handle unclean shutdown explicitly
+
+Connector 1.x force-closed during module destruction without a bounded failure contract. Connector 2:
+
+- stops interval and manual admission;
+- waits for active runners and an in-flight rotation;
+- closes current, pending, and retiring generations best effort;
+- throws one `AggregateError` if drain timed out or any close failed.
+
+Do not catch and silently convert that aggregate failure into a successful shutdown. The orchestrator and alerting system must be able to distinguish a clean drain from forced cleanup.
+
+## Adopt structured observability
+
+`rotation.onEvent` is optional but recommended for long-running services:
+
+```typescript copy
+rotation: {
+	isEnabled: true,
+	shutdownDrainTimeoutMs: 15_000,
+	onEvent: (event) => databaseRotationTelemetry.record(event),
+}
+```
+
+It reports:
+
+- `ROTATION_DEFERRED`;
+- `GENERATION_RETIRED`;
+- `DRAIN_TIMEOUT`.
+
+This is a direct typed callback, not Nest EventEmitter or RxJS. The listener is not awaited, and its failures do not fail rotation. Use it only to bridge into structured logs, metrics, and error reporting.
+
+See [Rotation Events](/docs/nestjs-typeorm-aws-connector/api-reference/rotation-events) for exact payloads and deferred reasons.
+
+## Account for bounded generation behavior
+
+Connector 1.x could promote repeatedly while several older pools remained active. Connector 2 allows only:
+
+```text
+one current generation
++ at most one retiring generation
+```
+
+If the retiring generation has active work or cannot close, later interval, manual, and emergency attempts defer through the same gate. Applications must not assume that every interval produces a promotion.
+
+Manager-bound transactions never switch generation. New query runners use the promoted generation; existing runners remain on the generation where they started until release or forced shutdown after timeout.
+
+## Keep schema work out of rotation
+
+Replacement initialization now disables:
+
+- `dropSchema`;
+- extension installation;
+- migration execution;
+- schema synchronization.
+
+Run migrations and schema management through explicit one-shot commands. Credential rotation is a pool lifecycle, not a schema lifecycle.
+
+## Verify the upgrade
+
+Run the consuming application's own build, type, startup, transaction, and shutdown checks. At minimum, verify:
+
+1. Connector 2 and one TypeORM 0.3 copy resolve.
+2. Missing, zero, negative, fractional, and non-finite drain timeouts fail when rotation is enabled.
+3. A transaction held across several intervals stays on its original generation.
+4. No third pool initializes while one generation is retiring.
+5. Releasing the held transaction closes the retiring generation and permits a later rotation.
+6. Credential, replacement initialization, verification, and retiring-close failures leave the live generation usable.
+7. Clean shutdown waits for active work.
+8. Timeout shutdown emits `DRAIN_TIMEOUT`, attempts cleanup, and rejects with `AggregateError`.
+9. PostgreSQL or MySQL pool close does not hang on checked-out query runners.
+10. Rotation-disabled one-shot processes register no interval.
+
+Project-specific role pools, capacity budgets, container stop deadlines, and telemetry routing remain consumer integration responsibilities.

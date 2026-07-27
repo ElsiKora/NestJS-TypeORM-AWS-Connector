@@ -3,7 +3,7 @@ import type { IStructuredLookup } from "@shared/interface/typeorm-aws-connector"
 import { ENamespace } from "@elsikora/nestjs-aws-parameter-store-config";
 import { ERelationLoadStrategy } from "@shared/enum";
 
-const CANONICAL_SSM_LOOKUPS: Readonly<Record<"connectionTimeoutMs" | "databaseName" | "host" | "idleTimeoutMs" | "isVerbose" | "poolSize" | "port" | "relationLoadStrategy" | "rotationIntervalMs" | "rotationIsEnabled" | "secretId" | "shouldSynchronize" | "type", IStructuredLookup>> = {
+const CANONICAL_SSM_LOOKUPS: Readonly<Record<"connectionTimeoutMs" | "databaseName" | "host" | "idleTimeoutMs" | "isVerbose" | "poolSize" | "port" | "relationLoadStrategy" | "rotationIntervalMs" | "rotationIsEnabled" | "rotationShutdownDrainTimeoutMs" | "secretId" | "shouldSynchronize" | "type", IStructuredLookup>> = {
 	connectionTimeoutMs: {
 		path: ["typeorm", "connection-timeout-ms"],
 	},
@@ -38,6 +38,9 @@ const CANONICAL_SSM_LOOKUPS: Readonly<Record<"connectionTimeoutMs" | "databaseNa
 	rotationIsEnabled: {
 		path: ["typeorm", "rotation", "enabled"],
 	},
+	rotationShutdownDrainTimeoutMs: {
+		path: ["typeorm", "rotation", "shutdown-drain-timeout-ms"],
+	},
 	secretId: {
 		instanceName: "database",
 		namespace: ENamespace.AWS_SECRETS_MANAGER,
@@ -62,6 +65,7 @@ const SSM_FIELD_LABELS: Readonly<Record<keyof typeof CANONICAL_SSM_LOOKUPS, stri
 	relationLoadStrategy: "relationLoadStrategy",
 	rotationIntervalMs: "rotation.intervalMs",
 	rotationIsEnabled: "rotation.isEnabled",
+	rotationShutdownDrainTimeoutMs: "rotation.shutdownDrainTimeoutMs",
 	secretId: "secret-id",
 	shouldSynchronize: "shouldSynchronize",
 	type: "type",

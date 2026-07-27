@@ -13,131 +13,8 @@ import { LegacyConnectorProbeService } from "./legacy-connector-probe.service.mj
 import { PROVIDER_DATABASE_CONFIG } from "./provider-database-config.constant.mjs";
 import { PROVIDER_DATA_SOURCE } from "./provider-data-source.constant.mjs";
 import { ProviderConnectorProbeService } from "./provider-connector-probe.service.mjs";
+import { createFakeDataSource, TestRotatorService } from "./rotator-test.utility.mjs";
 import { TestAppModule } from "./test-app.module.mjs";
-
-const DEFAULT_FAKE_OPTIONS = {
-	database: "app",
-	entities: [],
-	extra: {
-		max: 10,
-	},
-	host: "db-host",
-	logging: false,
-	password: "old-password",
-	port: 5432,
-	relationLoadStrategy: "query",
-	synchronize: false,
-	type: "postgres",
-	username: "old-user",
-};
-
-const cloneExtraOptions = (value) => {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		return {};
-	}
-
-	return {
-		...value,
-	};
-};
-
-const createFakeDriver = (label, dataSource) => {
-	const state = {
-		disconnectCalls: 0,
-		queryCalls: [],
-	};
-
-	const driver = {
-		connection: dataSource,
-		createQueryRunner: (mode = "master") => {
-			const queryRunner = {
-				connection: dataSource,
-				driver: undefined,
-				isReleased: false,
-				manager: undefined,
-				mode,
-				query: async (query) => {
-					state.queryCalls.push(query);
-
-					return [{ ok: 1 }];
-				},
-				release: async () => {
-					queryRunner.isReleased = true;
-				},
-			};
-
-			queryRunner.driver = driver;
-
-			return queryRunner;
-		},
-		disconnect: async () => {
-			state.disconnectCalls += 1;
-		},
-		label,
-		options: dataSource.options,
-		state,
-	};
-
-	return driver;
-};
-
-const createFakeDataSource = ({ label, options = {} }) => {
-	const dataSource = {
-		createQueryRunner(mode = "master") {
-			return dataSource.driver.createQueryRunner(mode);
-		},
-		destroyCalls: 0,
-		driver: undefined,
-		initialize: async () => {
-			dataSource.isInitialized = true;
-
-			return dataSource;
-		},
-		isInitialized: true,
-		options: {
-			...DEFAULT_FAKE_OPTIONS,
-			...options,
-			extra: {
-				...cloneExtraOptions(DEFAULT_FAKE_OPTIONS.extra),
-				...cloneExtraOptions(options.extra),
-			},
-		},
-		setOptions(nextOptions) {
-			dataSource.options = {
-				...dataSource.options,
-				...nextOptions,
-				extra: {
-					...cloneExtraOptions(dataSource.options.extra),
-					...cloneExtraOptions(nextOptions.extra),
-				},
-			};
-			dataSource.driver.options = dataSource.options;
-
-			return dataSource;
-		},
-		destroy: async () => {
-			dataSource.destroyCalls += 1;
-			dataSource.isInitialized = false;
-		},
-	};
-
-	const driver = createFakeDriver(label, dataSource);
-
-	dataSource.driver = driver;
-
-	return dataSource;
-};
-
-class TestRotatorService extends RotatorService {
-	constructor(dataSource, schedulerRegistry, connectorService, rotationIntervalName, replacementDataSource) {
-		super(dataSource, schedulerRegistry, connectorService, rotationIntervalName);
-		this.replacementDataSource = replacementDataSource;
-	}
-
-	createReplacementDataSource() {
-		return this.replacementDataSource;
-	}
-}
 
 describe("TypeOrmAwsConnectorModule", () => {
 	it("isolates multiple connector registrations in one Nest application", async () => {
@@ -188,6 +65,8 @@ describe("TypeOrmAwsConnectorModule", () => {
 			getRotationConfig: () => ({
 				intervalMs: 1_000,
 				isEnabled: true,
+				onEvent: undefined,
+				shutdownDrainTimeoutMs: 100,
 			}),
 		};
 
@@ -270,6 +149,10 @@ describe("TypeOrmAwsConnectorModule", () => {
 						return "true";
 					}
 
+					if (lookup.path.join("/") === "typeorm/rotation/shutdown-drain-timeout-ms") {
+						return "30000";
+					}
+
 					return null;
 				},
 			},
@@ -281,8 +164,10 @@ describe("TypeOrmAwsConnectorModule", () => {
 		assert.deepEqual(connectorService.getRotationConfig(), {
 			intervalMs: 600_000,
 			isEnabled: true,
+			onEvent: undefined,
+			shutdownDrainTimeoutMs: 30_000,
 		});
-		assert.deepEqual(resolvedLookups, ["typeorm/rotation/interval-ms", "typeorm/rotation/enabled"]);
+		assert.deepEqual(resolvedLookups, ["typeorm/rotation/interval-ms", "typeorm/rotation/enabled", "typeorm/rotation/shutdown-drain-timeout-ms"]);
 	});
 
 	it("promotes a verified replacement driver without destroying the live data source", async () => {
@@ -316,6 +201,8 @@ describe("TypeOrmAwsConnectorModule", () => {
 			getRotationConfig: () => ({
 				intervalMs: 1_000,
 				isEnabled: true,
+				onEvent: undefined,
+				shutdownDrainTimeoutMs: 100,
 			}),
 			getTypeOrmOptions: async () => replacementDataSource.options,
 		};
@@ -358,6 +245,9 @@ describe("TypeOrmAwsConnectorModule", () => {
 
 			await rotatedQueryRunner.release();
 			await inFlightQueryRunner.release();
+			await new Promise((resolve) => {
+				setImmediate(resolve);
+			});
 
 			assert.equal(originalDriver.state.disconnectCalls, 1);
 		} finally {

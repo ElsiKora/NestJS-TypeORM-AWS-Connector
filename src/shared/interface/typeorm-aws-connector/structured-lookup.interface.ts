@@ -1,3 +1,7 @@
-import type { IConfigGetProperties } from "@elsikora/nestjs-aws-parameter-store-config";
-
-export type IStructuredLookup = IConfigGetProperties;
+export interface IStructuredLookup {
+	application?: string;
+	environment?: string;
+	instanceName?: string;
+	namespace?: string;
+	path: Array<string>;
+}
