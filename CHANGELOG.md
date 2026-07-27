@@ -1,3 +1,23 @@
+# [2.0.0](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.4.1...v2.0.0) (2026-07-27)
+
+
+### Bug Fixes
+
+* **ci:** install without an ignored lockfile ([022fd70](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/022fd7022401331cb9e5c0fd281f5a4f4bb81844))
+* **packaging:** publish portable declarations ([5c0be33](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/5c0be330cea85b298f1aaad3110675950f51721d))
+
+
+### Features
+
+* **rotation:** bound database credential lifecycle ([cd67021](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/cd67021cbf92f901d339887664d286aae6e7a31d))
+
+
+### BREAKING CHANGES
+
+* **rotation:** Enabled rotation now requires a positive
+rotation.shutdownDrainTimeoutMs value. Shutdown may reject when generations
+cannot drain or close within the configured timeout.
+
 ## [1.4.1](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.4.0...v1.4.1) (2026-03-24)
 
 ### Bug Fixes

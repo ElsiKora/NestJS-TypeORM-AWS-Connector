@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-typeorm-aws-connector",
-	"version": "2.0.0-dev.2",
+	"version": "2.0.0",
 	"description": "NestJS TypeORM connector for AWS SSM and Secrets Manager with bounded credential rotation",
 	"homepage": "https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector#readme",
 	"bugs": {
