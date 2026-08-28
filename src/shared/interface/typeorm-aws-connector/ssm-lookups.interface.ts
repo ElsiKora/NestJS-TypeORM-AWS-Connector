@@ -5,7 +5,6 @@ export interface ITypeOrmAwsConnectorSsmLookups {
 	databaseName?: IStructuredLookup;
 	host?: IStructuredLookup;
 	idleTimeoutMs?: IStructuredLookup;
-	isVerbose?: IStructuredLookup;
 	poolSize?: IStructuredLookup;
 	port?: IStructuredLookup;
 	relationLoadStrategy?: IStructuredLookup;

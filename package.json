@@ -49,7 +49,7 @@
 		"lint:watch": "npx eslint-watch ./",
 		"prepare": "husky",
 		"release": "semantic-release",
-		"test": "npm run build && npm run test:consumer && node --test test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs",
+		"test": "npm run build && npm run test:consumer && node --test test/typeorm-aws-connector/error-boundary.spec.mjs test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs",
 		"test:consumer": "tsc --project test/consumer/tsconfig.json && tsc --project test/consumer/tsconfig.bundler.json && node test/consumer/smoke.cjs"
 	},
 	"config": {

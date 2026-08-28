@@ -12,7 +12,6 @@ export interface ITypeOrmAwsConnectorConfig {
 	entities: MixedList<EntitySchema | Function | string>;
 	host?: string;
 	idleTimeoutMs?: number;
-	isVerbose?: boolean;
 	password?: string;
 	poolSize?: number;
 	port?: number;

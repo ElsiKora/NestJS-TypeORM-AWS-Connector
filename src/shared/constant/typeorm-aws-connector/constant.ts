@@ -3,7 +3,7 @@ import type { IStructuredLookup } from "@shared/interface/typeorm-aws-connector"
 import { ENamespace } from "@elsikora/nestjs-aws-parameter-store-config";
 import { ERelationLoadStrategy } from "@shared/enum";
 
-const CANONICAL_SSM_LOOKUPS: Readonly<Record<"connectionTimeoutMs" | "databaseName" | "host" | "idleTimeoutMs" | "isVerbose" | "poolSize" | "port" | "relationLoadStrategy" | "rotationIntervalMs" | "rotationIsEnabled" | "rotationShutdownDrainTimeoutMs" | "secretId" | "shouldSynchronize" | "type", IStructuredLookup>> = {
+const CANONICAL_SSM_LOOKUPS: Readonly<Record<"connectionTimeoutMs" | "databaseName" | "host" | "idleTimeoutMs" | "poolSize" | "port" | "relationLoadStrategy" | "rotationIntervalMs" | "rotationIsEnabled" | "rotationShutdownDrainTimeoutMs" | "secretId" | "shouldSynchronize" | "type", IStructuredLookup>> = {
 	connectionTimeoutMs: {
 		path: ["typeorm", "connection-timeout-ms"],
 	},
@@ -17,9 +17,6 @@ const CANONICAL_SSM_LOOKUPS: Readonly<Record<"connectionTimeoutMs" | "databaseNa
 	},
 	idleTimeoutMs: {
 		path: ["typeorm", "idle-timeout-ms"],
-	},
-	isVerbose: {
-		path: ["typeorm", "logging"],
 	},
 	poolSize: {
 		path: ["typeorm", "pool-size"],
@@ -59,7 +56,6 @@ const SSM_FIELD_LABELS: Readonly<Record<keyof typeof CANONICAL_SSM_LOOKUPS, stri
 	databaseName: "databaseName",
 	host: "host",
 	idleTimeoutMs: "idleTimeoutMs",
-	isVerbose: "isVerbose",
 	poolSize: "poolSize",
 	port: "port",
 	relationLoadStrategy: "relationLoadStrategy",
@@ -79,7 +75,6 @@ const DATABASE_CONNECTION_ROTATION_INTERVAL: number = 1000 * 60 * 60;
 const DATABASE_ROTATION_INTERVAL_NAME: string = "db-rotation";
 const DATABASE_RELATION_LOAD_STRATEGY: ERelationLoadStrategy = ERelationLoadStrategy.QUERY;
 const IS_DATABASE_SYNCHRONIZATION_ENABLED: boolean = false;
-const IS_DATABASE_LOGGING_ENABLED: boolean = false;
 const SECRETS_MANAGER_CURRENT_VERSION_STAGE: string = "AWSCURRENT";
 
 const TYPEORM_AWS_CONNECTOR_CONSTANT: {
@@ -91,7 +86,6 @@ const TYPEORM_AWS_CONNECTOR_CONSTANT: {
 	readonly DATABASE_POOL_SIZE: number;
 	readonly DATABASE_RELATION_LOAD_STRATEGY: ERelationLoadStrategy;
 	readonly DATABASE_ROTATION_INTERVAL_NAME: string;
-	readonly IS_DATABASE_LOGGING_ENABLED: boolean;
 	readonly IS_DATABASE_SYNCHRONIZATION_ENABLED: boolean;
 	readonly SECRETS_MANAGER_CURRENT_VERSION_STAGE: string;
 	readonly SSM_FIELD_LABELS: typeof SSM_FIELD_LABELS;
@@ -104,7 +98,6 @@ const TYPEORM_AWS_CONNECTOR_CONSTANT: {
 	DATABASE_POOL_SIZE,
 	DATABASE_RELATION_LOAD_STRATEGY,
 	DATABASE_ROTATION_INTERVAL_NAME,
-	IS_DATABASE_LOGGING_ENABLED,
 	IS_DATABASE_SYNCHRONIZATION_ENABLED,
 	SECRETS_MANAGER_CURRENT_VERSION_STAGE,
 	SSM_FIELD_LABELS,

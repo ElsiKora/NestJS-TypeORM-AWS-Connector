@@ -80,7 +80,7 @@ The connector uses a **split-source model**: infrastructure-owned parameters (ho
 - ✨ ****Raw Value Overrides** — Bypass SSM entirely for any field by providing direct values — perfect for local development with `host: '127.0.0.1'`**
 - ✨ ****Hierarchical Lookup Resolution** — Field-level SSM lookup → canonical defaults → ssmLookupDefaults → ParameterStoreConfigModule defaults**
 - ✨ ****Dual Module Format** — Ships both ESM and CJS builds with full TypeScript declarations and source maps**
-- ✨ ****Comprehensive Error Model** — Contextual error messages include the failing field name and full structured lookup context for fast debugging**
+- ✨ ****Bounded Error Model** — Static diagnostics expose only a validated error type and optional SQLSTATE while retaining the original failure as `cause`**
 - ✨ ****Broad NestJS Compatibility** — Supports NestJS v8 through v11 as peer dependencies**
 - ✨ ****Sync & Async Registration** — Use `register()` for static config or `registerAsync()` with factory functions for dynamic configuration**
 
@@ -383,7 +383,9 @@ The rotation service will:
 
 At most two database pools exist during rotation: the current generation and one retiring generation. Overlapping intervals coalesce instead of creating queued replacements.
 
-`onEvent` is an optional, package-neutral observability callback. It can return `void` or `Promise<void>`; its returned promise is not awaited, and its synchronous body should stay small. It must not own correctness or database writes. Listener failures are logged and isolated from the rotation lifecycle. Event objects are frozen and contain no credentials.
+`onEvent` is an optional, package-neutral observability callback. It can return `void` or `Promise<void>`; its returned promise is not awaited, and its synchronous body should stay small. It must not own correctness or database writes. Listener failures are logged only as a validated error type plus an optional SQLSTATE and are isolated from the rotation lifecycle. Event objects are frozen and contain no credentials.
+
+The connector permanently sets TypeORM query logging to `false`. Foreign failure messages, stacks, SQL, parameters, driver payloads, credentials, lookup coordinates, profiles, IP addresses, and URLs are never copied into connector logs or wrapper messages. Wrapper errors retain the original failure as `cause` for explicit in-process handling.
 
 | Event                | Meaning                                                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------- |
@@ -511,7 +513,7 @@ See the complete [Migrating to 2.0 guide](docs/guides/migrating-to-2-0/page.mdx)
 
 **Q: Which databases are supported?** A: Currently PostgreSQL (`EDatabaseType.POSTGRES`) and MySQL (`EDatabaseType.MYSQL`). The `type` field is resolved from SSM or set directly.
 
-**Q: What happens if AWS Secrets Manager is unreachable during rotation?** A: The rotation service catches the error, increments a failure counter, and logs it. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
+**Q: What happens if AWS Secrets Manager is unreachable during rotation?** A: The rotation service catches the error, increments a failure counter, and logs only its validated error type and optional SQLSTATE. After 3 consecutive failures, it attempts an emergency recovery with a fresh replacement connection. Failed replacements are discarded, and the currently promoted pool stays in place until a later rotation succeeds.
 
 **Q: Can I use this without `@elsikora/nestjs-aws-parameter-store-config`?** A: No. The connector depends on `ParameterStoreConfigService.get()` for SSM lookups. You must register `ParameterStoreConfigModule` first. However, if you provide raw values for all fields, SSM lookups won't actually be invoked.
 

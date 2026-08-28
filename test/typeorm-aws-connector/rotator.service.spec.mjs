@@ -210,6 +210,9 @@ describe("RotatorService bounded lifecycle", () => {
 
 	it("keeps the live generation after credential and replacement verification failures, then rotates later", async () => {
 		const events = [];
+		const credentialFailure = new Error("Secrets Manager unavailable");
+		const initializationFailure = new Error("replacement initialization failed");
+		const verificationFailure = new Error("replacement verification failed");
 
 		const liveDataSource = createFakeDataSource({
 			label: "live",
@@ -219,13 +222,13 @@ describe("RotatorService bounded lifecycle", () => {
 			isInitialized: false,
 			label: "failed-replacement",
 			queryImplementation: async () => {
-				throw new Error("replacement verification failed");
+				throw verificationFailure;
 			},
 		});
 
 		const initializationFailedReplacement = createFakeDataSource({
 			initializeImplementation: async () => {
-				throw new Error("replacement initialization failed");
+				throw initializationFailure;
 			},
 			isInitialized: false,
 			label: "initialization-failed-replacement",
@@ -247,7 +250,7 @@ describe("RotatorService bounded lifecycle", () => {
 				optionsCalls += 1;
 
 				if (optionsCalls === 1) {
-					throw new Error("Secrets Manager unavailable");
+					throw credentialFailure;
 				}
 
 				if (optionsCalls === 2) {
@@ -259,16 +262,16 @@ describe("RotatorService bounded lifecycle", () => {
 		});
 		const rotatorService = new TestRotatorService(liveDataSource, createFakeSchedulerRegistry(), connectorService, "db-rotation:failure-recovery", [failedReplacement, initializationFailedReplacement, successfulReplacement]);
 
-		await assert.rejects(rotatorService.rotateDatabaseConnection(), /Secrets Manager unavailable/);
+		await assert.rejects(rotatorService.rotateDatabaseConnection(), (error) => error instanceof Error && error.message === "Failed to resolve fresh TypeORM options for database rotation. errorType=Error" && error.cause === credentialFailure);
 		assert.equal(liveDataSource.driver.label, "live");
 		assert.equal(failedReplacement.initializeCalls, 0);
 
-		await assert.rejects(rotatorService.rotateDatabaseConnection(), /Failed to verify new database connection/);
+		await assert.rejects(rotatorService.rotateDatabaseConnection(), (error) => error instanceof Error && error.message === "Database rotation failed. errorType=Error" && error.cause instanceof Error && error.cause.cause === verificationFailure);
 		assert.equal(liveDataSource.driver.label, "live");
 		assert.equal(failedReplacement.destroyCalls, 1);
 		assert.equal(failedReplacement.driver.state.disconnectCalls, 1);
 
-		await assert.rejects(rotatorService.rotateDatabaseConnection(), /replacement initialization failed/);
+		await assert.rejects(rotatorService.rotateDatabaseConnection(), (error) => error instanceof Error && error.message === "Database rotation failed. errorType=Error" && error.cause === initializationFailure);
 		assert.equal(liveDataSource.driver.label, "live");
 		assert.equal(initializationFailedReplacement.destroyCalls, 0);
 		assert.equal(initializationFailedReplacement.driver.state.disconnectCalls, 1);
@@ -446,7 +449,7 @@ describe("RotatorService bounded lifecycle", () => {
 		await secondQueryRunner.query("SELECT second_runner");
 		await rotatorService.rotateDatabaseConnection();
 
-		await assert.rejects(firstQueryRunner.release(), /query runner release failed/);
+		await assert.rejects(firstQueryRunner.release(), /Failed to release a tracked database query runner\. errorType=Error/);
 		await secondQueryRunner.release();
 		await flushAsyncWork();
 		assert.equal(firstReplacement.driver.state.disconnectCalls, 0);
@@ -673,8 +676,8 @@ describe("RotatorService bounded lifecycle", () => {
 		await assert.rejects(rotatorService.beforeApplicationShutdown(), (error) => {
 			assert.ok(error instanceof AggregateError);
 			assert.equal(error.errors.length, 2);
-			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("current disconnect failed")));
-			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("retiring disconnect failed")));
+			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("Failed to close the current database generation during shutdown. errorType=Error")));
+			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("Failed to close the retiring database generation. errorType=Error")));
 
 			return true;
 		});
@@ -880,7 +883,7 @@ describe("RotatorService bounded lifecycle", () => {
 		await assert.rejects(rotatorService.beforeApplicationShutdown(), (error) => {
 			assert.ok(error instanceof AggregateError);
 			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("did not drain within 10 ms")));
-			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("pending replacement close failed")));
+			assert.ok(error.errors.some((shutdownError) => shutdownError.message.includes("Failed to close the pending replacement DataSource during shutdown. errorType=Error")));
 
 			return true;
 		});
