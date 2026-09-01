@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
+import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
 
 import { FormatErrorEvidence } from "../../dist/esm/shared/utility/error-evidence.utility.js";
@@ -120,7 +121,7 @@ describe("Connector bounded error evidence", () => {
 		assert.equal(resolvedPaths.includes("typeorm/logging"), false);
 	});
 
-	it("wraps SSM and Secrets Manager failures without copying foreign facts", async () => {
+	it("wraps SSM and Secrets Manager failures without copying foreign facts", async (testContext) => {
 		const ssmFailure = createForeignFailure();
 
 		const ssmService = createConnectorService(
@@ -148,15 +149,36 @@ describe("Connector bounded error evidence", () => {
 			secretId: "private/secret/profile",
 		});
 
-		secretsManagerService.getCredentialsSecretClient = () => ({
-			send: async () => {
-				throw secretsManagerFailure;
-			},
+		testContext.mock.method(SecretsManagerClient.prototype, "send", async () => {
+			throw secretsManagerFailure;
 		});
 
 		await assert.rejects(secretsManagerService.getCredentials(), (failure) => {
 			assertBoundedFailure(failure, secretsManagerFailure, "Failed to load secret from AWS Secrets Manager");
 			assert.equal(failure.message.includes("private/secret/profile"), false);
+
+			return true;
+		});
+	});
+
+	it("bounds malformed Secrets Manager JSON without copying the secret payload", async (testContext) => {
+		const malformedSecretString = `{"password":"${RAW_FAILURE_CANARY}`;
+
+		const secretsManagerService = createConnectorService({
+			entities: [],
+			secretId: "private/secret/profile",
+		});
+
+		testContext.mock.method(SecretsManagerClient.prototype, "send", async () => ({
+			SecretString: malformedSecretString,
+		}));
+
+		await assert.rejects(secretsManagerService.getCredentials(), (failure) => {
+			assert.ok(failure instanceof Error);
+			assert.equal(failure.message, "Secret in AWS Secrets Manager contains invalid JSON. errorType=SyntaxError");
+			assert.equal(failure.message.includes(RAW_FAILURE_CANARY), false);
+			assert.ok(failure.cause instanceof SyntaxError);
+			assert.equal(FormatErrorEvidence(failure), "errorType=Error");
 
 			return true;
 		});
