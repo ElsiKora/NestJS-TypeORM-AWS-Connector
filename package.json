@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-typeorm-aws-connector",
-	"version": "2.0.0",
+	"version": "2.0.1-dev.1",
 	"description": "NestJS TypeORM connector for AWS SSM and Secrets Manager with bounded credential rotation",
 	"homepage": "https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector#readme",
 	"bugs": {
@@ -49,7 +49,7 @@
 		"lint:watch": "npx eslint-watch ./",
 		"prepare": "husky",
 		"release": "semantic-release",
-		"test": "npm run build && npm run test:consumer && node --test test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs",
+		"test": "npm run build && npm run test:consumer && node --test test/typeorm-aws-connector/error-boundary.spec.mjs test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs",
 		"test:consumer": "tsc --project test/consumer/tsconfig.json && tsc --project test/consumer/tsconfig.bundler.json && node test/consumer/smoke.cjs"
 	},
 	"config": {

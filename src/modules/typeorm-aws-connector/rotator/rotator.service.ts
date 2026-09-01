@@ -6,6 +6,7 @@ import type { TMutableDriver, TQueryRunnerMode, TRetiringDriver } from "./type";
 import { BeforeApplicationShutdown, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { ETypeOrmAwsConnectorDrainTimeoutPhase, ETypeOrmAwsConnectorRotationDeferredReason, ETypeOrmAwsConnectorRotationEvent } from "@shared/enum";
+import { FormatErrorEvidence } from "@shared/utility/error-evidence.utility";
 import { DataSource } from "typeorm";
 
 import { TypeOrmAwsConnectorService } from "../typeorm-aws-connector.service";
@@ -86,7 +87,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 		} catch (error) {
 			clearInterval(interval);
 
-			throw error;
+			throw new Error(`Failed to register the database rotation interval. ${FormatErrorEvidence(error)}`, { cause: error });
 		}
 
 		this.LOGGER.log(`DB credentials rotation interval started: ${String(rotationConfig.intervalMs)} ms`);
@@ -119,7 +120,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 			this.consecutiveFailures = 0;
 			this.LOGGER.log("Emergency recovery successful!");
 		} catch (recoveryError) {
-			this.LOGGER.error(`Emergency recovery failed: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`);
+			this.LOGGER.error(`Emergency recovery failed. ${FormatErrorEvidence(recoveryError)}`);
 		}
 	}
 
@@ -141,7 +142,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 				type: ETypeOrmAwsConnectorRotationEvent.GENERATION_RETIRED,
 			});
 		} catch (error) {
-			closeErrors.push(new Error(`Failed to close current DB generation ${String(this.currentDriverGeneration)} during shutdown: ${error instanceof Error ? error.message : String(error)}`, { cause: error }));
+			closeErrors.push(new Error(`Failed to close the current database generation during shutdown. ${FormatErrorEvidence(error)}`, { cause: error }));
 		}
 
 		if (closeErrors.length === 0) {
@@ -169,7 +170,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 		if (result === null) {
 			void closePromise.then((lateErrors: Array<Error>) => {
 				for (const lateError of lateErrors) {
-					this.LOGGER.error(`Database generation close failed after the shutdown timeout: ${lateError.message}`);
+					this.LOGGER.error(`Database generation close failed after the shutdown timeout. ${FormatErrorEvidence(lateError)}`);
 				}
 			});
 
@@ -209,7 +210,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 
 			return undefined;
 		} catch (error) {
-			return new Error(`Failed to close pending replacement DataSource during shutdown: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			return new Error(`Failed to close the pending replacement DataSource during shutdown. ${FormatErrorEvidence(error)}`, { cause: error });
 		}
 	}
 
@@ -221,33 +222,39 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 				try {
 					await this.disconnectReplacementQueryResultCache(dataSource);
 				} catch (cacheError) {
-					throw new AggregateError([error, cacheError], "Replacement DataSource and its query-result cache could not be closed.", { cause: cacheError });
+					throw new AggregateError([new Error(`Failed to close the replacement DataSource. ${FormatErrorEvidence(error)}`, { cause: error }), new Error(`Failed to disconnect the replacement query-result cache. ${FormatErrorEvidence(cacheError)}`, { cause: cacheError })], "Replacement DataSource and its query-result cache could not be closed.", { cause: cacheError });
 				}
 
-				throw error;
+				throw new Error(`Failed to close the replacement DataSource. ${FormatErrorEvidence(error)}`, { cause: error });
 			}
 
 			return;
 		}
 
-		const cleanupErrors: Array<unknown> = [];
+		const cleanupErrors: Array<Error> = [];
 
 		try {
 			await this.disconnectReplacementQueryResultCache(dataSource);
 		} catch (error) {
-			cleanupErrors.push(error);
+			cleanupErrors.push(new Error(`Failed to disconnect the replacement query-result cache. ${FormatErrorEvidence(error)}`, { cause: error }));
 		}
 
 		try {
 			await dataSource.driver.disconnect();
 		} catch (error) {
-			if (!(error instanceof Error && error.name === "ConnectionIsNotSetError")) {
-				cleanupErrors.push(error);
+			const errorEvidence: string = FormatErrorEvidence(error);
+
+			if (errorEvidence !== "errorType=ConnectionIsNotSetError" && !errorEvidence.startsWith("errorType=ConnectionIsNotSetError ")) {
+				cleanupErrors.push(new Error(`Failed to disconnect the replacement DataSource driver. ${errorEvidence}`, { cause: error }));
 			}
 		}
 
 		if (cleanupErrors.length === 1) {
-			throw cleanupErrors[0];
+			const cleanupError: Error | undefined = cleanupErrors[0];
+
+			if (cleanupError !== undefined) {
+				throw cleanupError;
+			}
 		}
 
 		if (cleanupErrors.length > 1) {
@@ -284,9 +291,9 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 			await retiringDriver.driver.disconnect();
 			isDisconnected = true;
 		} catch (error) {
-			const disposalError: Error = new Error(`Failed to close retiring DB generation ${String(retiringDriver.generation)}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			const disposalError: Error = new Error(`Failed to close the retiring database generation. ${FormatErrorEvidence(error)}`, { cause: error });
 
-			this.LOGGER.error(disposalError.message);
+			this.LOGGER.error(`Retiring database generation close failed. ${FormatErrorEvidence(disposalError)}`);
 			disposalErrors.push(disposalError);
 		}
 
@@ -341,10 +348,10 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 
 		try {
 			void Promise.resolve(this.rotationEventListener(Object.freeze(event))).catch((error: unknown) => {
-				this.LOGGER.error(`DB rotation event listener failed for "${event.type}": ${error instanceof Error ? error.message : String(error)}`);
+				this.LOGGER.error(`Database rotation event listener failed. ${FormatErrorEvidence(error)}`);
 			});
 		} catch (error) {
-			this.LOGGER.error(`DB rotation event listener failed for "${event.type}": ${error instanceof Error ? error.message : String(error)}`);
+			this.LOGGER.error(`Database rotation event listener failed. ${FormatErrorEvidence(error)}`);
 		}
 	}
 
@@ -464,7 +471,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 
 				this.decrementActiveQueryRunnerCount(generation);
 
-				throw error;
+				throw new Error(`Failed to install database query-runner release tracking. ${FormatErrorEvidence(error)}`, { cause: error });
 			}
 		};
 
@@ -530,7 +537,13 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 			return false;
 		}
 
-		const freshOptions: DataSourceOptions = await this.connectorService.getTypeOrmOptions();
+		let freshOptions: DataSourceOptions;
+
+		try {
+			freshOptions = await this.connectorService.getTypeOrmOptions();
+		} catch (error) {
+			throw new Error(`Failed to resolve fresh TypeORM options for database rotation. ${FormatErrorEvidence(error)}`, { cause: error });
+		}
 
 		if (this.isShutdownInProgress) {
 			this.emitRotationDeferredEvent(ETypeOrmAwsConnectorRotationDeferredReason.SHUTDOWN_IN_PROGRESS);
@@ -588,16 +601,16 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 			return true;
 		} catch (error) {
 			if (isPromoted) {
-				throw error;
+				throw new Error(`Database rotation failed after promotion. ${FormatErrorEvidence(error)}`, { cause: error });
 			}
 
 			try {
 				await this.destroyReplacementDataSource(nextDataSource);
 			} catch (cleanupError) {
-				throw new AggregateError([error, cleanupError], "Database rotation failed and the replacement DataSource could not be closed.", { cause: cleanupError });
+				throw new AggregateError([new Error(`Database rotation failed. ${FormatErrorEvidence(error)}`, { cause: error }), new Error(`Replacement DataSource cleanup failed. ${FormatErrorEvidence(cleanupError)}`, { cause: cleanupError })], "Database rotation failed and the replacement DataSource could not be closed.", { cause: cleanupError });
 			}
 
-			throw error;
+			throw new Error(`Database rotation failed. ${FormatErrorEvidence(error)}`, { cause: error });
 		} finally {
 			if (this.pendingReplacementDataSource === nextDataSource) {
 				this.pendingReplacementDataSource = undefined;
@@ -655,7 +668,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 				return [];
 			}
 
-			return [new Error(`Failed to release an active query runner from DB generation ${String(generation)} during forced shutdown: ${releaseResult.reason instanceof Error ? releaseResult.reason.message : String(releaseResult.reason)}`, { cause: releaseResult.reason })];
+			return [new Error(`Failed to release an active query runner during forced shutdown. ${FormatErrorEvidence(releaseResult.reason)}`, { cause: releaseResult.reason })];
 		});
 	}
 
@@ -696,7 +709,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 			}
 		} catch (error) {
 			this.consecutiveFailures++;
-			this.LOGGER.error(`Database rotation failed: ${error instanceof Error ? error.message : String(error)}`);
+			this.LOGGER.error(`Database rotation failed. ${FormatErrorEvidence(error)}`);
 
 			if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
 				this.LOGGER.warn(`${String(this.consecutiveFailures)} consecutive rotation failures. Attempting emergency recovery...`);
@@ -772,7 +785,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 
 			return undefined;
 		} catch (error) {
-			return new Error(`Failed to stop DB rotation interval "${this.rotationIntervalName}": ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			return new Error(`Failed to stop the database rotation interval. ${FormatErrorEvidence(error)}`, { cause: error });
 		}
 	}
 
@@ -781,7 +794,11 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 		let isTrackedReleaseHandled: boolean = false;
 
 		queryRunner.release = async (): Promise<void> => {
-			await originalRelease();
+			try {
+				await originalRelease();
+			} catch (error) {
+				throw new Error(`Failed to release a tracked database query runner. ${FormatErrorEvidence(error)}`, { cause: error });
+			}
 
 			if (isTrackedReleaseHandled) {
 				return;
@@ -801,11 +818,11 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 			void this.scheduleRetiringDriverDisposal(false)
 				.then((disposalError: Error | undefined) => {
 					if (disposalError !== undefined) {
-						this.LOGGER.warn(disposalError.message);
+						this.LOGGER.warn(`Retiring database generation disposal was deferred after a failure. ${FormatErrorEvidence(disposalError)}`);
 					}
 				})
 				.catch((error: unknown) => {
-					this.LOGGER.error(`Retiring DB generation disposal failed unexpectedly: ${error instanceof Error ? error.message : String(error)}`);
+					this.LOGGER.error(`Retiring database generation disposal failed unexpectedly. ${FormatErrorEvidence(error)}`);
 				});
 		};
 	}
@@ -828,7 +845,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 
 			this.LOGGER.debug("Current connection is healthy");
 		} catch (error) {
-			this.LOGGER.warn(`Current connection health check failed: ${error instanceof Error ? error.message : String(error)}`);
+			this.LOGGER.warn(`Current connection health check failed. ${FormatErrorEvidence(error)}`);
 		}
 	}
 
@@ -852,9 +869,9 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 
 			this.LOGGER.debug("New connection verified successfully");
 		} catch (error) {
-			this.LOGGER.error(`New connection verification failed: ${error instanceof Error ? error.message : String(error)}`);
+			this.LOGGER.error(`New connection verification failed. ${FormatErrorEvidence(error)}`);
 
-			throw new Error(`Failed to verify new database connection: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			throw new Error(`Failed to verify the new database connection. ${FormatErrorEvidence(error)}`, { cause: error });
 		}
 	}
 

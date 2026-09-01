@@ -9,6 +9,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DATABASE_CONFIG_PROVIDER, TYPEORM_AWS_CONNECTOR_CONSTANT } from "@shared/constant/typeorm-aws-connector";
 import { EDatabaseType, ERelationLoadStrategy } from "@shared/enum";
+import { FormatErrorEvidence } from "@shared/utility/error-evidence.utility";
 
 @Injectable()
 export class TypeOrmAwsConnectorService {
@@ -39,8 +40,8 @@ export class TypeOrmAwsConnectorService {
 		const credentialsSecret: IAwsDatabaseCredentialsSecret = await this.getCredentialsSecret(secretId);
 
 		return {
-			password: rawPassword === undefined ? this.readRequiredSecretString("password", credentialsSecret.password, secretId) : this.parseRawStringValue("password", rawPassword),
-			username: rawUsername === undefined ? this.readRequiredSecretString("username", credentialsSecret.username, secretId) : this.parseRawStringValue("username", rawUsername),
+			password: rawPassword === undefined ? this.readRequiredSecretString("password", credentialsSecret.password) : this.parseRawStringValue("password", rawPassword),
+			username: rawUsername === undefined ? this.readRequiredSecretString("username", credentialsSecret.username) : this.parseRawStringValue("username", rawUsername),
 		};
 	}
 
@@ -53,9 +54,7 @@ export class TypeOrmAwsConnectorService {
 
 		if (isEnabled) {
 			if (shutdownDrainTimeoutMs === undefined) {
-				const lookup: IStructuredLookup = this.buildLookup("rotationShutdownDrainTimeoutMs");
-
-				throw new Error(`Value for "${this.getFieldLabel("rotationShutdownDrainTimeoutMs")}" was not found in AWS Systems Manager Parameter Store. Lookup: ${JSON.stringify(lookup)}.`);
+				throw new Error(`Value for "${this.getFieldLabel("rotationShutdownDrainTimeoutMs")}" was not found in AWS Systems Manager Parameter Store.`);
 			}
 
 			return {
@@ -80,7 +79,6 @@ export class TypeOrmAwsConnectorService {
 		const databaseName: string = this.readRequiredStringFromConfigOrSsm("databaseName", this.databaseConfig.databaseName);
 		const host: string = this.readRequiredStringFromConfigOrSsm("host", this.databaseConfig.host);
 		const idleTimeoutMs: number = this.readOptionalNumberFromConfigOrSsm("idleTimeoutMs", this.databaseConfig.idleTimeoutMs, TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_IDLE_TIMEOUT);
-		const isVerbose: boolean = this.readOptionalBooleanFromConfigOrSsm("isVerbose", this.databaseConfig.isVerbose ?? null, TYPEORM_AWS_CONNECTOR_CONSTANT.IS_DATABASE_LOGGING_ENABLED);
 		const poolSize: number = this.readOptionalNumberFromConfigOrSsm("poolSize", this.databaseConfig.poolSize, TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_POOL_SIZE);
 		const port: number = this.readRequiredNumberFromConfigOrSsm("port", this.databaseConfig.port);
 		const relationLoadStrategy: ERelationLoadStrategy = this.readOptionalRelationLoadStrategyFromConfigOrSsm(this.databaseConfig.relationLoadStrategy, TYPEORM_AWS_CONNECTOR_CONSTANT.DATABASE_RELATION_LOAD_STRATEGY);
@@ -98,7 +96,7 @@ export class TypeOrmAwsConnectorService {
 			},
 			host,
 
-			logging: isVerbose,
+			logging: false,
 			password: credentials.password,
 			port,
 			relationLoadStrategy,
@@ -124,12 +122,12 @@ export class TypeOrmAwsConnectorService {
 		const path: Array<string> = fieldLookup ? fieldLookup.path : canonicalLookup.path;
 
 		if (!Array.isArray(path) || path.length === 0) {
-			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}": "path" must be a non-empty string array. Lookup: ${JSON.stringify(fieldLookup ?? canonicalLookup)}`);
+			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}": "path" must be a non-empty string array.`);
 		}
 
 		for (const segment of path) {
 			if (typeof segment !== "string" || !segment.trim() || segment.includes("/")) {
-				throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}": every "path" segment must be a non-empty string without "/". Lookup: ${JSON.stringify(fieldLookup ?? canonicalLookup)}`);
+				throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}": every "path" segment must be a non-empty string without "/".`);
 			}
 		}
 
@@ -143,7 +141,7 @@ export class TypeOrmAwsConnectorService {
 	}
 
 	private async getCredentialsSecret(secretId: string): Promise<IAwsDatabaseCredentialsSecret> {
-		this.LOGGER.debug(`Fetching credentials secret "${secretId}" from AWS Secrets Manager...`);
+		this.LOGGER.debug("Fetching credentials secret from AWS Secrets Manager...");
 
 		let response: GetSecretValueCommandOutput;
 
@@ -155,24 +153,23 @@ export class TypeOrmAwsConnectorService {
 				}),
 			);
 		} catch (error) {
-			const errorName: string | undefined = error instanceof Error ? error.name : undefined;
-			const message: string = error instanceof Error ? error.message : String(error);
+			const errorEvidence: string = FormatErrorEvidence(error);
 
-			if (errorName === "ResourceNotFoundException") {
-				throw new Error(`Secret in AWS Secrets Manager was not found for "secret-id" value "${secretId}".`, { cause: error });
+			if (errorEvidence === "errorType=ResourceNotFoundException" || errorEvidence.startsWith("errorType=ResourceNotFoundException ")) {
+				throw new Error(`Secret in AWS Secrets Manager was not found. ${errorEvidence}`, { cause: error });
 			}
 
-			throw new Error(`Failed to load secret from AWS Secrets Manager for "secret-id" value "${secretId}": ${message}`, { cause: error });
+			throw new Error(`Failed to load secret from AWS Secrets Manager. ${errorEvidence}`, { cause: error });
 		}
 
 		if (!response.SecretString) {
-			throw new Error(`Secret in AWS Secrets Manager for "secret-id" value "${secretId}" does not contain a string payload.`);
+			throw new Error("Secret in AWS Secrets Manager does not contain a string payload.");
 		}
 
 		try {
 			return JSON.parse(response.SecretString) as IAwsDatabaseCredentialsSecret;
 		} catch (error) {
-			throw new Error(`Secret in AWS Secrets Manager for "secret-id" value "${secretId}" contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			throw new Error(`Secret in AWS Secrets Manager contains invalid JSON. ${FormatErrorEvidence(error)}`, { cause: error });
 		}
 	}
 
@@ -186,14 +183,6 @@ export class TypeOrmAwsConnectorService {
 		return TYPEORM_AWS_CONNECTOR_CONSTANT.SSM_FIELD_LABELS[field];
 	}
 
-	private getLookupSuffix(lookup?: IStructuredLookup): string {
-		if (lookup === undefined) {
-			return "";
-		}
-
-		return ` Lookup: ${JSON.stringify(lookup)}.`;
-	}
-
 	private getSsmValue(field: keyof typeof TYPEORM_AWS_CONNECTOR_CONSTANT.CANONICAL_SSM_LOOKUPS): { lookup: IStructuredLookup; value: null | string } {
 		const lookup: IStructuredLookup = this.buildLookup(field);
 
@@ -203,11 +192,11 @@ export class TypeOrmAwsConnectorService {
 				value: this.parameterStoreConfigService.get(lookup),
 			};
 		} catch (error) {
-			throw new Error(`Invalid lookup config for "${this.getFieldLabel(field)}". Lookup: ${JSON.stringify(lookup)}. ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			throw new Error(`Failed to resolve AWS Systems Manager Parameter Store value. ${FormatErrorEvidence(error)}`, { cause: error });
 		}
 	}
 
-	private parseBooleanValue(field: keyof typeof TYPEORM_AWS_CONNECTOR_CONSTANT.CANONICAL_SSM_LOOKUPS, value: boolean | string, lookup?: IStructuredLookup): boolean {
+	private parseBooleanValue(field: keyof typeof TYPEORM_AWS_CONNECTOR_CONSTANT.CANONICAL_SSM_LOOKUPS, value: boolean | string): boolean {
 		if (typeof value === "boolean") {
 			return value;
 		}
@@ -222,10 +211,10 @@ export class TypeOrmAwsConnectorService {
 			return false;
 		}
 
-		throw new Error(`Invalid boolean value for "${this.getFieldLabel(field)}": "${value}".${this.getLookupSuffix(lookup)}`);
+		throw new Error(`Invalid boolean value for "${this.getFieldLabel(field)}".`);
 	}
 
-	private parseDatabaseTypeValue(value: EDatabaseType | string, lookup?: IStructuredLookup): EDatabaseType {
+	private parseDatabaseTypeValue(value: EDatabaseType | string): EDatabaseType {
 		const normalizedValue: string = typeof value === "string" ? value.trim().toLowerCase() : value;
 
 		switch (normalizedValue) {
@@ -238,25 +227,25 @@ export class TypeOrmAwsConnectorService {
 			}
 
 			default: {
-				throw new Error(`Invalid string value for "type": "${value}".${this.getLookupSuffix(lookup)}`);
+				throw new Error('Invalid string value for "type".');
 			}
 		}
 	}
 
-	private parseNumberValue(field: keyof typeof TYPEORM_AWS_CONNECTOR_CONSTANT.CANONICAL_SSM_LOOKUPS, value: number | string, lookup?: IStructuredLookup): number {
+	private parseNumberValue(field: keyof typeof TYPEORM_AWS_CONNECTOR_CONSTANT.CANONICAL_SSM_LOOKUPS, value: number | string): number {
 		if (typeof value === "number") {
 			if (Number.isFinite(value) && Number.isInteger(value)) {
 				return value;
 			}
 
-			throw new Error(`Invalid number value for "${this.getFieldLabel(field)}": "${String(value)}".`);
+			throw new Error(`Invalid number value for "${this.getFieldLabel(field)}".`);
 		}
 
 		const normalizedValue: string = this.parseRawStringValue(this.getFieldLabel(field), value);
 		const parsedValue: number = Number(normalizedValue);
 
 		if (!Number.isFinite(parsedValue) || !Number.isInteger(parsedValue)) {
-			throw new TypeError(`Invalid number value for "${this.getFieldLabel(field)}": "${value}".${this.getLookupSuffix(lookup)}`);
+			throw new TypeError(`Invalid number value for "${this.getFieldLabel(field)}".`);
 		}
 
 		return parsedValue;
@@ -272,7 +261,7 @@ export class TypeOrmAwsConnectorService {
 		return normalizedValue;
 	}
 
-	private parseRelationLoadStrategyValue(value: ERelationLoadStrategy | string, lookup?: IStructuredLookup): ERelationLoadStrategy {
+	private parseRelationLoadStrategyValue(value: ERelationLoadStrategy | string): ERelationLoadStrategy {
 		const normalizedValue: string = typeof value === "string" ? value.trim().toLowerCase() : value;
 
 		switch (normalizedValue) {
@@ -285,12 +274,12 @@ export class TypeOrmAwsConnectorService {
 			}
 
 			default: {
-				throw new Error(`Invalid string value for "relationLoadStrategy": "${value}".${this.getLookupSuffix(lookup)}`);
+				throw new Error('Invalid string value for "relationLoadStrategy".');
 			}
 		}
 	}
 
-	private readOptionalBooleanFromConfigOrSsm(field: "isVerbose" | "rotationIsEnabled" | "shouldSynchronize", rawValue: boolean | null = null, defaultValue: boolean): boolean {
+	private readOptionalBooleanFromConfigOrSsm(field: "rotationIsEnabled" | "shouldSynchronize", rawValue: boolean | null = null, defaultValue: boolean): boolean {
 		if (rawValue !== null) {
 			return this.parseBooleanValue(field, rawValue);
 		}
@@ -301,7 +290,7 @@ export class TypeOrmAwsConnectorService {
 			return defaultValue;
 		}
 
-		return this.parseBooleanValue(field, ssmValue.value, ssmValue.lookup);
+		return this.parseBooleanValue(field, ssmValue.value);
 	}
 
 	private readOptionalNumberFromConfigOrSsm(field: "connectionTimeoutMs" | "idleTimeoutMs" | "poolSize" | "rotationIntervalMs", rawValue: number | undefined, defaultValue: number): number {
@@ -315,7 +304,7 @@ export class TypeOrmAwsConnectorService {
 			return defaultValue;
 		}
 
-		return this.parseNumberValue(field, ssmValue.value, ssmValue.lookup);
+		return this.parseNumberValue(field, ssmValue.value);
 	}
 
 	private readOptionalPositiveNumberFromConfigOrSsm(field: "rotationShutdownDrainTimeoutMs", rawValue: number | undefined): number | undefined {
@@ -333,9 +322,9 @@ export class TypeOrmAwsConnectorService {
 			return undefined;
 		}
 
-		const value: number = this.parseNumberValue(field, ssmValue.value, ssmValue.lookup);
+		const value: number = this.parseNumberValue(field, ssmValue.value);
 
-		this.validatePositiveNumber(field, value, ssmValue.lookup);
+		this.validatePositiveNumber(field, value);
 
 		return value;
 	}
@@ -351,7 +340,7 @@ export class TypeOrmAwsConnectorService {
 			return defaultValue;
 		}
 
-		return this.parseRelationLoadStrategyValue(ssmValue.value, ssmValue.lookup);
+		return this.parseRelationLoadStrategyValue(ssmValue.value);
 	}
 
 	private readRequiredDatabaseTypeFromConfigOrSsm(rawValue: EDatabaseType | undefined): EDatabaseType {
@@ -362,10 +351,10 @@ export class TypeOrmAwsConnectorService {
 		const ssmValue: { lookup: IStructuredLookup; value: null | string } = this.getSsmValue("type");
 
 		if (ssmValue.value === null) {
-			throw new Error(`Value for "type" was not found in AWS Systems Manager Parameter Store. Lookup: ${JSON.stringify(ssmValue.lookup)}.`);
+			throw new Error('Value for "type" was not found in AWS Systems Manager Parameter Store.');
 		}
 
-		return this.parseDatabaseTypeValue(ssmValue.value, ssmValue.lookup);
+		return this.parseDatabaseTypeValue(ssmValue.value);
 	}
 
 	private readRequiredNumberFromConfigOrSsm(field: "port", rawValue: number | undefined): number {
@@ -376,15 +365,15 @@ export class TypeOrmAwsConnectorService {
 		const ssmValue: { lookup: IStructuredLookup; value: null | string } = this.getSsmValue(field);
 
 		if (ssmValue.value === null) {
-			throw new Error(`Value for "${this.getFieldLabel(field)}" was not found in AWS Systems Manager Parameter Store. Lookup: ${JSON.stringify(ssmValue.lookup)}.`);
+			throw new Error(`Value for "${this.getFieldLabel(field)}" was not found in AWS Systems Manager Parameter Store.`);
 		}
 
-		return this.parseNumberValue(field, ssmValue.value, ssmValue.lookup);
+		return this.parseNumberValue(field, ssmValue.value);
 	}
 
-	private readRequiredSecretString(field: "password" | "username", value: string | undefined, secretId: string): string {
+	private readRequiredSecretString(field: "password" | "username", value: string | undefined): string {
 		if (typeof value !== "string") {
-			throw new TypeError(`Credentials secret "${secretId}" is missing required field "${field}".`);
+			throw new TypeError(`Credentials secret is missing required field "${field}".`);
 		}
 
 		return this.parseRawStringValue(field, value);
@@ -398,17 +387,17 @@ export class TypeOrmAwsConnectorService {
 		const ssmValue: { lookup: IStructuredLookup; value: null | string } = this.getSsmValue(field);
 
 		if (ssmValue.value === null) {
-			throw new Error(`Value for "${this.getFieldLabel(field)}" was not found in AWS Systems Manager Parameter Store. Lookup: ${JSON.stringify(ssmValue.lookup)}.`);
+			throw new Error(`Value for "${this.getFieldLabel(field)}" was not found in AWS Systems Manager Parameter Store.`);
 		}
 
 		return this.parseRawStringValue(this.getFieldLabel(field), ssmValue.value);
 	}
 
-	private validatePositiveNumber(field: "rotationIntervalMs" | "rotationShutdownDrainTimeoutMs", value: number, lookup?: IStructuredLookup): void {
+	private validatePositiveNumber(field: "rotationIntervalMs" | "rotationShutdownDrainTimeoutMs", value: number): void {
 		if (value > 0) {
 			return;
 		}
 
-		throw new RangeError(`Invalid number value for "${this.getFieldLabel(field)}": "${String(value)}". Value must be a positive integer.${this.getLookupSuffix(lookup)}`);
+		throw new RangeError(`Invalid number value for "${this.getFieldLabel(field)}". Value must be a positive integer.`);
 	}
 }
