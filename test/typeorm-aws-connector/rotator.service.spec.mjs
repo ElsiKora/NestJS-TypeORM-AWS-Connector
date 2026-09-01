@@ -2,8 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { ETypeOrmAwsConnectorDrainTimeoutPhase, ETypeOrmAwsConnectorRotationDeferredReason, ETypeOrmAwsConnectorRotationEvent, TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
+import { Logger } from "@nestjs/common";
 
 import { createDeferred, createFakeDataSource, createFakeSchedulerRegistry, TestRotatorService } from "./rotator-test.utility.mjs";
+
+const RAW_FAILURE_CANARY = "SELECT secret FROM ledger WHERE profile='prod' host=10.0.0.7 url=https://private.invalid password=exposed";
+
+const createLogCanaryFailure = () =>
+	Object.assign(new Error(RAW_FAILURE_CANARY), {
+		code: "23505",
+		name: "QueryFailedError",
+		parameters: [RAW_FAILURE_CANARY],
+		query: RAW_FAILURE_CANARY,
+		stack: RAW_FAILURE_CANARY,
+	});
+
+const readLoggedErrors = (errorLogger) => errorLogger.mock.calls.flatMap((call) => call.arguments).join("\n");
 
 const flushAsyncWork = async () => {
 	await new Promise((resolve) => {
@@ -208,11 +222,12 @@ describe("RotatorService bounded lifecycle", () => {
 		}
 	});
 
-	it("keeps the live generation after credential and replacement verification failures, then rotates later", async () => {
+	it("keeps the live generation after credential and replacement verification failures, then rotates later", async (testContext) => {
 		const events = [];
 		const credentialFailure = new Error("Secrets Manager unavailable");
 		const initializationFailure = new Error("replacement initialization failed");
-		const verificationFailure = new Error("replacement verification failed");
+		const verificationFailure = createLogCanaryFailure();
+		const errorLogger = testContext.mock.method(Logger.prototype, "error", () => undefined);
 
 		const liveDataSource = createFakeDataSource({
 			label: "live",
@@ -266,7 +281,7 @@ describe("RotatorService bounded lifecycle", () => {
 		assert.equal(liveDataSource.driver.label, "live");
 		assert.equal(failedReplacement.initializeCalls, 0);
 
-		await assert.rejects(rotatorService.rotateDatabaseConnection(), (error) => error instanceof Error && error.message === "Database rotation failed. errorType=Error" && error.cause instanceof Error && error.cause.cause === verificationFailure);
+		await assert.rejects(rotatorService.rotateDatabaseConnection(), (error) => error instanceof Error && error.message === "Database rotation failed. errorType=Error sqlState=23505" && error.cause instanceof Error && error.cause.message === "Failed to verify the new database connection. errorType=QueryFailedError sqlState=23505" && error.cause.cause === verificationFailure);
 		assert.equal(liveDataSource.driver.label, "live");
 		assert.equal(failedReplacement.destroyCalls, 1);
 		assert.equal(failedReplacement.driver.state.disconnectCalls, 1);
@@ -278,6 +293,11 @@ describe("RotatorService bounded lifecycle", () => {
 
 		await rotatorService.rotateDatabaseConnection();
 		assert.equal(liveDataSource.driver.label, "successful-replacement");
+
+		const loggedErrors = readLoggedErrors(errorLogger);
+
+		assert.match(loggedErrors, /New connection verification failed\. errorType=QueryFailedError sqlState=23505/u);
+		assert.equal(loggedErrors.includes(RAW_FAILURE_CANARY), false);
 
 		await rotatorService.beforeApplicationShutdown();
 	});
@@ -348,8 +368,9 @@ describe("RotatorService bounded lifecycle", () => {
 		await rotatorService.beforeApplicationShutdown();
 	});
 
-	it("defers after a retiring close failure and resumes only after that generation closes", async () => {
+	it("defers after a retiring close failure and resumes only after that generation closes", async (testContext) => {
 		const events = [];
+		const errorLogger = testContext.mock.method(Logger.prototype, "error", () => undefined);
 		let retiringDisconnectAttempts = 0;
 
 		const liveDataSource = createFakeDataSource({
@@ -357,7 +378,7 @@ describe("RotatorService bounded lifecycle", () => {
 				retiringDisconnectAttempts += 1;
 
 				if (retiringDisconnectAttempts <= 2) {
-					throw new Error("retiring pool close failed");
+					throw createLogCanaryFailure();
 				}
 			},
 			label: "generation-0",
@@ -399,6 +420,11 @@ describe("RotatorService bounded lifecycle", () => {
 		assert.equal(liveDataSource.driver.label, "generation-2");
 		assert.equal(optionsCalls, 2);
 		assert.equal(firstReplacement.driver.state.disconnectCalls, 1);
+
+		const loggedErrors = readLoggedErrors(errorLogger);
+
+		assert.match(loggedErrors, /Retiring database generation close failed\. errorType=Error sqlState=23505/u);
+		assert.equal(loggedErrors.includes(RAW_FAILURE_CANARY), false);
 
 		await rotatorService.beforeApplicationShutdown();
 	});
@@ -732,8 +758,9 @@ describe("RotatorService bounded lifecycle", () => {
 		}
 	});
 
-	it("isolates asynchronous event-listener failures and reports an uninitialized data source", async () => {
+	it("isolates asynchronous event-listener failures and reports an uninitialized data source", async (testContext) => {
 		const events = [];
+		const errorLogger = testContext.mock.method(Logger.prototype, "error", () => undefined);
 
 		const liveDataSource = createFakeDataSource({
 			isInitialized: false,
@@ -747,7 +774,7 @@ describe("RotatorService bounded lifecycle", () => {
 				onEvent: async (event) => {
 					events.push(event);
 
-					throw new Error("telemetry listener failed");
+					throw createLogCanaryFailure();
 				},
 				shutdownDrainTimeoutMs: 100,
 			}),
@@ -770,6 +797,11 @@ describe("RotatorService bounded lifecycle", () => {
 			},
 		]);
 		assert.ok(Object.isFrozen(events[0]));
+
+		const loggedErrors = readLoggedErrors(errorLogger);
+
+		assert.match(loggedErrors, /Database rotation event listener failed\. errorType=QueryFailedError sqlState=23505/u);
+		assert.equal(loggedErrors.includes(RAW_FAILURE_CANARY), false);
 
 		await rotatorService.beforeApplicationShutdown();
 	});
