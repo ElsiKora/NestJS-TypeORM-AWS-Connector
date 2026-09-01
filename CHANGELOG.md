@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v2.0.0...v2.0.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* **logging:** hard-disable unsafe database logs ([4997b40](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/4997b4026e9d93daa3c895b456b6eb5010f26a2f))
+
 # [2.0.0](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v1.4.1...v2.0.0) (2026-07-27)
 
 ### Bug Fixes
