@@ -1,0 +1,73 @@
+# Migrating to 3.0
+
+Connector 3.0 moves to NestJS 12 and TypeORM 1 and ships as ES modules only. The configuration API, the canonical SSM lookup contract, the rotation lifecycle and the exported names do not change.
+
+## Requirements
+
+| Requirement                                   | 2.x                                       | 3.0                         |
+| --------------------------------------------- | ----------------------------------------- | --------------------------- |
+| Node.js                                       | `>=20.0.0`                                | `^22.13.0 \|\| >=24.11.0`   |
+| `@nestjs/common`, `@nestjs/core`              | `^8 \|\| ^9 \|\| ^10 \|\| ^11`            | `>=12.3.2 <13`              |
+| `@nestjs/config`                              | dependency `^4.0.3`                       | peer `>=12.0.1 <13`         |
+| `typeorm`                                     | `^0.3.20`                                 | `>=1.1.2 <2`                |
+| `@elsikora/nestjs-aws-parameter-store-config` | dependency `^2.0.2`                       | peer `^3.0.0-dev.1`         |
+| `@aws-sdk/client-ssm`                         | `^3.535.0`                                | `>=3.535.0 <4` (same range) |
+| Module format                                 | ESM and CommonJS (`dist/esm`, `dist/cjs`) | ESM only (`dist`)           |
+
+Applications on NestJS 11 or older, TypeORM 0.3 or Node.js 20 stay on 2.x.
+
+## Install the peers
+
+1. Upgrade Node.js, NestJS and TypeORM first, following the [NestJS migration guide](https://docs.nestjs.com/migration-guide) and the TypeORM 1 release notes.
+2. Install the connector with its peers. `@elsikora/nestjs-aws-parameter-store-config` and `@nestjs/config` are now peers, so the application installs them itself:
+
+```bash copy
+npm install @elsikora/nestjs-typeorm-aws-connector@^3.0.0-0 @elsikora/nestjs-aws-parameter-store-config@^3.0.0-0 @aws-sdk/client-ssm @nestjs/common@^12 @nestjs/core@^12 @nestjs/config@^12 @nestjs/typeorm@^12 typeorm@^1
+npm ls @elsikora/nestjs-typeorm-aws-connector @elsikora/nestjs-aws-parameter-store-config @nestjs/config typeorm
+```
+
+`npm ls` must show one copy of `@elsikora/nestjs-aws-parameter-store-config` and one of `@nestjs/config`. The connector injects `ParameterStoreConfigService` and `ConfigService`, and Nest resolves them by class: a nested second copy is a different class, and the injection fails at startup.
+
+The parameter store peer range `^3.0.0-dev.1` accepts the 3.0.0 prereleases of that package and every stable 3.x release. The connector still installs `@aws-sdk/client-secrets-manager` and `@nestjs/schedule` as its own dependencies.
+
+## Import only from the package root
+
+3.0 removes `dist/esm`, `dist/cjs` and the `require` export condition. The 2.x `exports` map already had only `.`, so Node.js never resolved deep imports, and TypeScript with `node10` resolution, which ignores `exports`, no longer finds types for paths such as `@elsikora/nestjs-typeorm-aws-connector/dist/cjs/...` either.
+
+**ES module applications** import the package as before, with `moduleResolution` set to `bundler`, `node16` or `nodenext`. The declarations carry `.js` extensions on every relative import, so `nodenext` consumers get the types.
+
+**CommonJS applications** keep `require("@elsikora/nestjs-typeorm-aws-connector")`. Node.js loads the ES module through `require(esm)`, which works without a flag on every supported Node.js release. TypeScript with `module: commonjs` finds the types either way: with `moduleResolution: node10` through the top-level `types` field (TypeScript 6 then needs `"ignoreDeprecations": "6.0"`), and without `moduleResolution`, which TypeScript 6 resolves as `bundler`, through `exports`.
+
+Importing the package has no side effects: it loads no `.env` file and writes nothing to the console. CI checks this on the packed tarball.
+
+## Native ES module applications
+
+Applications that build to native ES modules, for example with the Nest CLI SWC builder and `"type": "module"`, must type every relation between entities that import each other as `Relation<T>`:
+
+```typescript copy
+import type { Relation } from "typeorm";
+
+import { BookEntity } from "@entity/book.entity";
+import { Entity, OneToMany } from "typeorm";
+
+@Entity("authors")
+export class AuthorEntity {
+	@OneToMany(() => BookEntity, (book: BookEntity) => book.author)
+	public books!: Relation<Array<BookEntity>>;
+}
+```
+
+Without it, `emitDecoratorMetadata` writes the related class into `design:type`, and the cycle fails at startup with `ReferenceError: Cannot access 'AuthorEntity' before initialization`. CommonJS output does not hit this. The SWC config needs `module.type: "es6"` with `resolveFully: true`, so extensionless and alias imports get a `.js` extension that Node.js can load.
+
+## TypeORM 1 driver swap
+
+Rotation promotes the replacement driver into the live `DataSource`. TypeORM 1 keeps the data source of a driver in `driver.dataSource` and turns `driver.connection` into a getter-only alias. The 2.x rotator assigned `driver.connection`, which throws a `TypeError` on TypeORM 1 and fails the rotation; 3.0 assigns `driver.dataSource`. Code that reads `dataSource.driver.connection` still works through the alias; prefer `driver.dataSource`.
+
+## Verify the upgrade
+
+```bash copy
+npm ls @elsikora/nestjs-typeorm-aws-connector typeorm
+npm run build
+```
+
+Then run the application's startup, transaction, rotation and shutdown tests.

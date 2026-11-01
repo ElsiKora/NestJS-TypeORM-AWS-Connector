@@ -7,7 +7,7 @@ asIndexPage: true
 
 **NestJS TypeORM AWS Connector** resolves TypeORM configuration from AWS Systems Manager Parameter Store and credentials from AWS Secrets Manager while keeping one stable Nest-injected `DataSource`.
 
-Connector 2 adds a bounded credential-rotation lifecycle:
+Connector 3 runs on NestJS 12, TypeORM 1 and Node.js `^22.13.0 || >=24.11.0` and ships as ES modules only; see [Migrating to 3.0](/docs/nestjs-typeorm-aws-connector/guides/migrating-to-3-0). Since Connector 2 it has a bounded credential-rotation lifecycle:
 
 - one current and at most one retiring pool;
 - query-runner and manager-bound transaction affinity;
@@ -20,6 +20,7 @@ Connector 2 adds a bounded credential-rotation lifecycle:
 
 - [Getting Started](/docs/nestjs-typeorm-aws-connector/getting-started)
 - [Credential Rotation](/docs/nestjs-typeorm-aws-connector/guides/credential-rotation)
+- [Migrating to 3.0](/docs/nestjs-typeorm-aws-connector/guides/migrating-to-3-0)
 - [Migrating to 2.0](/docs/nestjs-typeorm-aws-connector/guides/migrating-to-2-0)
 - [2.0 Release Notes](/docs/nestjs-typeorm-aws-connector/guides/release-notes-2-0)
 - [Configuration Reference](/docs/nestjs-typeorm-aws-connector/api-reference/configuration)

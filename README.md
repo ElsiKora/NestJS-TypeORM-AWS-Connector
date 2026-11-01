@@ -19,7 +19,7 @@
 - ♻️ Bounded automatic credential rotation with health checks, transaction affinity, and at most one retiring pool
 - ⏱️ Bounded shutdown with explicit drain timeout, aggregate failure, and package-neutral lifecycle events
 - 🏗️ Split-source architecture — infra teams own host/port/secrets, app teams own pool/timeout/sync settings independently
-- 📦 Dual ESM/CJS module output with full TypeScript declarations and broad NestJS compatibility (v8–v11)
+- 📦 ES module build with extension-qualified TypeScript declarations for NestJS 12 and TypeORM 1, loadable from CommonJS through `require(esm)`
 
 ## 📚 Table of Contents
 
@@ -31,6 +31,7 @@
 - [Prerequisites](#-prerequisites)
 - [Installation](#-installation)
 - [Usage](#-usage)
+- [Migrating to 3.0](#migrating-to-30)
 - [Migrating to 2.0](#migrating-from-1x)
 - [Roadmap](#-roadmap)
 - [FAQ](#-faq)
@@ -79,9 +80,9 @@ The connector uses a **split-source model**: infrastructure-owned parameters (ho
 - ✨ ****Split-Source Configuration Model** — Infrastructure-owned settings (host, port, secret-id) use canonical AWS namespaces; app-owned settings use your module namespace**
 - ✨ ****Raw Value Overrides** — Bypass SSM entirely for any field by providing direct values — perfect for local development with `host: '127.0.0.1'`**
 - ✨ ****Hierarchical Lookup Resolution** — Field-level SSM lookup → canonical defaults → ssmLookupDefaults → ParameterStoreConfigModule defaults**
-- ✨ ****Dual Module Format** — Ships both ESM and CJS builds with full TypeScript declarations and source maps**
+- ✨ ****ES Module Build** — Ships ES modules with extension-qualified TypeScript declarations and source maps; CommonJS applications load it through `require(esm)`**
 - ✨ ****Bounded Error Model** — Static diagnostics expose only a validated error type and optional SQLSTATE while retaining the original failure as `cause`**
-- ✨ ****Broad NestJS Compatibility** — Supports NestJS v8 through v11 as peer dependencies**
+- ✨ ****NestJS 12 and TypeORM 1** — Peers `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13` and `typeorm` `>=1.1.2 <2`**
 - ✨ ****Sync & Async Registration** — Use `register()` for static config or `registerAsync()` with factory functions for dynamic configuration**
 
 ## 🏗 Architecture
@@ -152,12 +153,17 @@ NestJS-TypeORM-AWS-Connector/
 │   │   ├── mirror-to-codecommit.yml
 │   │   ├── qodana-quality-scan.yml
 │   │   ├── release.yml
-│   │   └── snyk-security-scan.yml
+│   │   ├── snyk-security-scan.yml
+│   │   └── test.yml
 │   └── dependabot.yml
 ├── docs/
 │   ├── api-reference/
 │   ├── getting-started/
 │   └── guides/
+├── scripts/
+│   ├── test/
+│   │   └── consumer-smoke.mjs
+│   └── check-declaration-imports.cjs
 ├── src/
 │   ├── modules/
 │   │   └── typeorm-aws-connector/
@@ -168,6 +174,9 @@ NestJS-TypeORM-AWS-Connector/
 │   │   ├── provider/
 │   │   └── type/
 │   └── index.ts
+├── test/
+│   ├── consumer/
+│   └── typeorm-aws-connector/
 ├── CHANGELOG.md
 ├── commitlint.config.js
 ├── eslint.config.js
@@ -188,29 +197,30 @@ NestJS-TypeORM-AWS-Connector/
 
 ## 📋 Prerequisites
 
-- Node.js >= 20.0.0
+- Node.js ^22.13.0 || >=24.11.0
 - npm >= 9.0.0
-- @nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
-- @aws-sdk/client-ssm ^3.535.0
-- typeorm ^0.3.20
-- @elsikora/nestjs-aws-parameter-store-config ^2.0.2 (installed automatically)
+- @nestjs/common and @nestjs/core >=12.3.2 <13
+- @nestjs/config >=12.0.1 <13
+- typeorm >=1.1.2 <2
+- @elsikora/nestjs-aws-parameter-store-config ^3.0.0-dev.1 (the 3.0 prereleases and every stable 3.x)
+- @aws-sdk/client-ssm >=3.535.0 <4
 - AWS credentials configured (IAM role, environment variables, or AWS CLI profile)
 
 ## 🛠 Installation
 
-These source docs describe the Connector 2 contract. Use a 2.x-only range so installation cannot silently fall back to Connector 1.x. Before the first 2.0 prerelease is published, this command intentionally fails.
+These source docs describe Connector 3. `^3.0.0-0` selects a 3.0 prerelease and later stable 3.x releases.
 
 ```bash
-# Install the connector and its required peer dependencies
-npm install @elsikora/nestjs-typeorm-aws-connector@^2.0.0-0 @aws-sdk/client-ssm @nestjs/common typeorm
+# Install the connector and its peer dependencies
+npm install @elsikora/nestjs-typeorm-aws-connector@^3.0.0-0 @elsikora/nestjs-aws-parameter-store-config@^3.0.0-0 @aws-sdk/client-ssm @nestjs/common@^12 @nestjs/core@^12 @nestjs/config@^12 @nestjs/typeorm@^12 typeorm@^1
 ```
 
-The connector installs `@aws-sdk/client-secrets-manager`, `@elsikora/nestjs-aws-parameter-store-config`, `@nestjs/config`, and `@nestjs/schedule` as direct dependencies.
+The connector installs `@aws-sdk/client-secrets-manager` and `@nestjs/schedule` as direct dependencies. `@elsikora/nestjs-aws-parameter-store-config` and `@nestjs/config` are peers: the connector injects `ParameterStoreConfigService` and `ConfigService`, so it must share the application's copy of both.
 
 ### Verify Installation
 
 ```bash
-npm ls @elsikora/nestjs-typeorm-aws-connector
+npm ls @elsikora/nestjs-typeorm-aws-connector @elsikora/nestjs-aws-parameter-store-config @nestjs/config typeorm
 ```
 
 ## 💡 Usage
@@ -472,6 +482,30 @@ For each configuration field, values are resolved in this order:
 
 Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw explicit errors if not resolvable. When rotation resolves as enabled, `rotation.shutdownDrainTimeoutMs` is also required. Explicit `rotation` properties take priority over their structured SSM lookups.
 
+### Migrating to 3.0
+
+3.0 moves the connector to NestJS 12 and TypeORM 1 and ships it as ES modules only. The configuration API, the canonical SSM lookup contract, the rotation lifecycle and the exported names do not change.
+
+| Requirement                                   | 2.x                            | 3.0                         |
+| --------------------------------------------- | ------------------------------ | --------------------------- |
+| Node.js                                       | `>=20.0.0`                     | `^22.13.0 \|\| >=24.11.0`   |
+| `@nestjs/common`, `@nestjs/core`              | `^8 \|\| ^9 \|\| ^10 \|\| ^11` | `>=12.3.2 <13`              |
+| `@nestjs/config`                              | dependency `^4.0.3`            | peer `>=12.0.1 <13`         |
+| `typeorm`                                     | `^0.3.20`                      | `>=1.1.2 <2`                |
+| `@elsikora/nestjs-aws-parameter-store-config` | dependency `^2.0.2`            | peer `^3.0.0-dev.1`         |
+| `@aws-sdk/client-ssm`                         | `^3.535.0`                     | `>=3.535.0 <4` (same range) |
+| Module format                                 | ESM and CommonJS               | ESM only                    |
+
+1. Upgrade Node.js, NestJS and TypeORM first. Applications on NestJS 11 or older, TypeORM 0.3 or Node.js 20 stay on 2.x.
+2. Install `@elsikora/nestjs-aws-parameter-store-config` 3 and `@nestjs/config` 12 in the application; they are no longer installed by the connector. `npm ls` must show one copy of each.
+3. Import only from the package root. `dist/esm`, `dist/cjs` and the `require` export condition are gone.
+
+**ES module applications** import the package with `moduleResolution` set to `bundler`, `node16` or `nodenext`; the declarations carry `.js` extensions on every relative import. **CommonJS applications** keep `require()`, which Node.js serves through `require(esm)` on every supported release. TypeScript with `module: commonjs` finds the types through the top-level `types` field with `moduleResolution: node10` (TypeScript 6 then needs `"ignoreDeprecations": "6.0"`), and through `exports` without `moduleResolution`, which TypeScript 6 resolves as `bundler`. **Native ES module builds** such as the Nest CLI SWC builder type relations between entities that import each other as `Relation<T>`; otherwise startup fails with `ReferenceError: Cannot access '...' before initialization`.
+
+Importing the package loads no `.env` file and writes nothing to the console. CI checks this, and runs ESM, CommonJS and SWC consumer apps against Postgres, on the packed tarball.
+
+See the complete [Migrating to 3.0 guide](docs/guides/migrating-to-3-0/page.mdx).
+
 ### Migrating from 1.x
 
 Connector 2.0 intentionally removes the unbounded rotation and force-only shutdown contract. Existing applications that enable rotation must add a positive `rotation.shutdownDrainTimeoutMs`, enable Nest shutdown hooks for process signals, and decide how to surface the new structured rotation events.
@@ -485,7 +519,7 @@ See the complete [Migrating to 2.0 guide](docs/guides/migrating-to-2-0/page.mdx)
 
 | Task / Feature                                                     | Status         |
 | ------------------------------------------------------------------ | -------------- |
-| Dual ESM/CJS module output                                         | ✅ Done        |
+| ES module build for NestJS 12 and TypeORM 1                        | ✅ Done        |
 | AWS Secrets Manager credential resolution                          | ✅ Done        |
 | Automatic credential rotation with staged driver promotion         | ✅ Done        |
 | Bounded current-plus-one-retiring generation lifecycle             | ✅ Done        |
@@ -519,7 +553,9 @@ See the complete [Migrating to 2.0 guide](docs/guides/migrating-to-2-0/page.mdx)
 
 **Q: How does the split-source model work?** A: Infrastructure-owned fields like `host`, `port`, and `secretId` default to canonical AWS namespaces (e.g., `aws-rds/aurora-postgres`). Application-owned fields like `poolSize` and `connectionTimeoutMs` use your app's namespace (e.g., `aws-ecs-fargate/my-api`). You can override any lookup.
 
-**Q: Is this compatible with NestJS v8?** A: Yes. The peer dependency accepts `@nestjs/common ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0`.
+**Q: Which NestJS and TypeORM versions are supported?** A: 3.x needs NestJS 12 (`@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`) and TypeORM 1 (`>=1.1.2 <2`) on Node.js `^22.13.0 || >=24.11.0`. Applications on NestJS 8–11 or TypeORM 0.3 stay on 2.x.
+
+**Q: Can a CommonJS application use the connector?** A: Yes. The package is ES modules only, and `require("@elsikora/nestjs-typeorm-aws-connector")` loads it through Node.js `require(esm)`, which every supported Node.js release has without a flag.
 
 **Q: How do I disable credential rotation?** A: Don't set the `rotation` config, or explicitly set `rotation.isEnabled: false`. The `RotatorService` will skip interval registration entirely. This is the recommended mode for one-shot jobs, migrations, and other short-lived processes.
 
@@ -546,7 +582,7 @@ This project is licensed under **MIT**.
 - **[AWS SDK for JavaScript v3](https://github.com/aws/aws-sdk-js-v3)** — Modular AWS SDK used for SSM and Secrets Manager client operations
 - **[@elsikora/nestjs-aws-parameter-store-config](https://github.com/ElsiKora/nestjs-aws-parameter-store-config)** — The Parameter Store config module that provides the structured lookup foundation
 - **[Semantic Release](https://semantic-release.gitbook.io/)** — Automated versioning and changelog generation
-- **[Rollup](https://rollupjs.org/)** — Module bundler powering the dual ESM/CJS build output
+- **[Rollup](https://rollupjs.org/)** — Module bundler powering the ES module build output
 - Built with ❤️ by [ElsiKora](https://github.com/ElsiKora)
 
 ---
