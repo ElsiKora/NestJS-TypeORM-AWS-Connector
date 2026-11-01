@@ -38,7 +38,7 @@ The parameter store peer range `^3.0.0-dev.1` accepts the 3.0.0 prereleases of t
 
 **CommonJS applications** keep `require("@elsikora/nestjs-typeorm-aws-connector")`. Node.js loads the ES module through `require(esm)`, which works without a flag on every supported Node.js release. TypeScript with `module: commonjs` finds the types either way: with `moduleResolution: node10` through the top-level `types` field (TypeScript 6 then needs `"ignoreDeprecations": "6.0"`), and without `moduleResolution`, which TypeScript 6 resolves as `bundler`, through `exports`.
 
-Importing the package has no side effects: it loads no `.env` file and writes nothing to the console. CI checks this on the packed tarball.
+Importing the package has no side effects: it loads no `.env` file and writes nothing to the console. CI checks this on the packed tarball, and runs the consumer apps with the latest release in each peer range and, on Node.js 22.13.0, with every peer at the lower bound of the ranges above.
 
 ## Native ES module applications
 

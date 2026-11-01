@@ -14,7 +14,9 @@
  * builder does, and tsc only typechecks it with bundler resolution.
  * DATABASE_URL selects an existing database; otherwise a testcontainers Postgres is started and removed afterwards.
  *
- * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place.
+ * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place, --peer-floors installs
+ * every peerDependency at the lower bound of its range instead of the repository devDependency versions, and fails
+ * unless exactly those versions were installed.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -50,6 +52,27 @@ const APP_TIMEOUT_MS = 120_000;
 const ARGS = new Set(process.argv.slice(2));
 
 /**
+ * Returns the lower bound of every peerDependency range, such as 12.3.2 for ">=12.3.2 <13" or 3.0.0-dev.1 for "^3.0.0-dev.1".
+ * @param {Record<string, string>} peerDependencies - The repository peerDependencies.
+ * @returns {Record<string, string>} Exact versions by package name.
+ */
+function getPeerFloors(peerDependencies) {
+	const floors = {};
+
+	for (const [name, range] of Object.entries(peerDependencies)) {
+		const floor = /^(?:>=|\^)(\d+\.\d+\.\d+(?:-[\w.]+)?)(?:\s|$)/.exec(range)?.[1];
+
+		if (!floor) {
+			throw new Error(`The peer range of ${name} has no >= or ^ lower bound: ${range}`);
+		}
+
+		floors[name] = floor;
+	}
+
+	return floors;
+}
+
+/**
  * Runs a command with inherited output and fails the smoke when it exits non-zero.
  * @param {string} command - Executable.
  * @param {Array<string>} commandArguments - Arguments.
@@ -78,6 +101,10 @@ function createManifest(tarball) {
 		}
 
 		dependencies[name] = version;
+	}
+
+	if (ARGS.has("--peer-floors")) {
+		Object.assign(dependencies, getPeerFloors(repositoryManifest.peerDependencies));
 	}
 
 	return JSON.stringify({ dependencies, name: "typeorm-aws-connector-consumer-smoke", private: true }, undefined, "\t");
@@ -132,6 +159,20 @@ try {
 
 	writeFileSync(path.join(workDirectory, "package.json"), createManifest(tarball));
 	run("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], { cwd: workDirectory });
+
+	if (ARGS.has("--peer-floors")) {
+		const repositoryManifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
+
+		for (const [name, floor] of Object.entries(getPeerFloors(repositoryManifest.peerDependencies))) {
+			const installed = JSON.parse(readFileSync(path.join(workDirectory, "node_modules", name, "package.json"), "utf8")).version;
+
+			if (installed !== floor) {
+				throw new Error(`${name} is ${installed}, not its floor ${floor}`);
+			}
+
+			process.stdout.write(`peer floor ${name}@${installed}\n`);
+		}
+	}
 	writeFileSync(path.join(workDirectory, ".env"), "SMOKE_DOTENV=loaded\n");
 	process.stdout.write(`\n=== import side effects (Node.js ${process.version}) ===\n`);
 

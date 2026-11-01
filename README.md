@@ -502,7 +502,7 @@ Required fields (`host`, `port`, `databaseName`, `type`, `secretId`) throw expli
 
 **ES module applications** import the package with `moduleResolution` set to `bundler`, `node16` or `nodenext`; the declarations carry `.js` extensions on every relative import. **CommonJS applications** keep `require()`, which Node.js serves through `require(esm)` on every supported release. TypeScript with `module: commonjs` finds the types through the top-level `types` field with `moduleResolution: node10` (TypeScript 6 then needs `"ignoreDeprecations": "6.0"`), and through `exports` without `moduleResolution`, which TypeScript 6 resolves as `bundler`. **Native ES module builds** such as the Nest CLI SWC builder type relations between entities that import each other as `Relation<T>`; otherwise startup fails with `ReferenceError: Cannot access '...' before initialization`.
 
-Importing the package loads no `.env` file and writes nothing to the console. CI checks this, and runs ESM, CommonJS and SWC consumer apps against Postgres, on the packed tarball.
+Importing the package loads no `.env` file and writes nothing to the console. CI checks this, and runs ESM, CommonJS and SWC consumer apps against Postgres, on the packed tarball: with the latest release in each peer range, and on Node.js 22.13.0 with every peer at the lower bound of its range.
 
 See the complete [Migrating to 3.0 guide](docs/guides/migrating-to-3-0/page.mdx).
 
