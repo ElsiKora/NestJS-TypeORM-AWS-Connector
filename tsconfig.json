@@ -18,6 +18,8 @@
 		"noUnusedParameters": true,
 		"outDir": "./dist",
 		"paths": {
+			"@elsikora/nestjs-typeorm-aws-connector": ["./src/index.ts"],
+			"@entity/*": ["./test/consumer/swc/src/entity/*"],
 			"@modules/*": ["./src/modules/*"],
 			"@shared/*": ["./src/shared/*"]
 		},
@@ -28,5 +30,5 @@
 		"types": ["node"]
 	},
 	"exclude": ["node_modules", "dist"],
-	"include": ["src/**/*.ts", "src/**/*.tsx"]
+	"include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts"]
 }

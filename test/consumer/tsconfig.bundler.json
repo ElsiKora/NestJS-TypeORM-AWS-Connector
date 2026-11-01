@@ -1,8 +1,0 @@
-{
-	"compilerOptions": {
-		"module": "ESNext",
-		"moduleResolution": "Bundler"
-	},
-	"extends": "./tsconfig.json",
-	"files": ["smoke.mts"]
-}

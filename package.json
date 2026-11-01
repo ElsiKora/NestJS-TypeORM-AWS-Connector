@@ -43,8 +43,9 @@
 		"lint:watch": "npx eslint-watch ./",
 		"prepare": "husky",
 		"release": "semantic-release",
-		"test": "npm run build && npm run test:consumer && node --test test/typeorm-aws-connector/error-boundary.spec.mjs test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs",
-		"test:consumer": "tsc --project test/consumer/tsconfig.json && tsc --project test/consumer/tsconfig.bundler.json && node test/consumer/smoke.cjs"
+		"test": "npm run build && npm run test:unit",
+		"test:consumer": "node scripts/test/consumer-smoke.mjs",
+		"test:unit": "node --test test/typeorm-aws-connector/error-boundary.spec.mjs test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
 	},
 	"config": {
 		"commitizen": {
@@ -70,6 +71,7 @@
 		"@nestjs/config": "^12.0.1",
 		"@nestjs/core": "^12.3.2",
 		"@nestjs/schematics": "^12.0.12",
+		"@nestjs/typeorm": "^12.0.2",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@rollup/plugin-typescript": "^12.3.1",
 		"@saithodev/semantic-release-backmerge": "^4.0.1",
@@ -79,6 +81,7 @@
 		"@semantic-release/github": "^12.0.10",
 		"@semantic-release/npm": "^13.2.0",
 		"@semantic-release/release-notes-generator": "^14.1.1",
+		"@testcontainers/postgresql": "^12.2.1",
 		"@types/node": "^26.6.6",
 		"commitizen": "^4.3.2",
 		"conventional-changelog-conventionalcommits": "^10.4.1",
@@ -89,6 +92,7 @@
 		"eslint-plugin-typeorm-typescript": "^0.5.4",
 		"husky": "^9.1.7",
 		"lint-staged": "^17.6.0",
+		"pg": "^8.23.1",
 		"prettier": "^3.9.10",
 		"reflect-metadata": "^0.2.2",
 		"rimraf": "^6.1.3",
