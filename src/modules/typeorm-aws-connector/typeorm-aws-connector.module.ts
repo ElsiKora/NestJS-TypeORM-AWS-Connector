@@ -1,4 +1,4 @@
-import type { OptionalFactoryDependency } from "@nestjs/common/interfaces";
+import type { OptionalFactoryDependency } from "@nestjs/common";
 import type { ITypeOrmAwsConnectorModuleAsyncOptions } from "@shared/interface/typeorm-aws-connector";
 import type { TTypeOrmAwsConnectorModuleOptions } from "@shared/type/typeorm-aws-connector";
 

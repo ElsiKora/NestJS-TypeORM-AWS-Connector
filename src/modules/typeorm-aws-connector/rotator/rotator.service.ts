@@ -648,7 +648,7 @@ export class RotatorService implements BeforeApplicationShutdown, OnModuleInit {
 		};
 
 		this.currentDriverGeneration += 1;
-		mutableNextDriver.connection = dataSource;
+		mutableNextDriver.dataSource = dataSource;
 		dataSource.driver = mutableNextDriver;
 		dataSource.setOptions(this.getPromotionDataSourceOptions(mergedOptions));
 		mutableCurrentDriver.options = retiringOptions;

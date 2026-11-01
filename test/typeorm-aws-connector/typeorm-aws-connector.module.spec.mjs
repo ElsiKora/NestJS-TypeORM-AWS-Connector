@@ -230,6 +230,7 @@ describe("TypeOrmAwsConnectorModule", () => {
 			assert.equal(liveDataSource.destroyCalls, 0);
 			assert.equal(replacementDataSource.destroyCalls, 0);
 			assert.equal(liveDataSource.driver.label, "replacement");
+			assert.equal(liveDataSource.driver.dataSource, liveDataSource);
 			assert.equal(liveDataSource.driver.connection, liveDataSource);
 			assert.equal(liveDataSource.options.host, "rotated-host");
 			assert.equal(liveDataSource.options.password, "new-password");

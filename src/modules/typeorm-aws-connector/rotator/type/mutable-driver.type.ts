@@ -1,6 +1,6 @@
 import type { DataSource, DataSourceOptions } from "typeorm";
 
 export type TMutableDriver = {
-	connection: DataSource;
+	dataSource: DataSource;
 	options: DataSourceOptions;
 } & DataSource["driver"];

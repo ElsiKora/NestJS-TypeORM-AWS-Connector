@@ -8,6 +8,7 @@
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
+		"ignoreDeprecations": "6.0",
 		"isolatedModules": true,
 		"module": "ESNext",
 		"moduleResolution": "bundler",
@@ -20,13 +21,13 @@
 		"outDir": "./dist",
 		"paths": {
 			"@modules/*": ["modules/*"],
-			"@shared/*": ["shared/*"],
-			"typeorm/*": ["./node_modules/typeorm/*"]
+			"@shared/*": ["shared/*"]
 		},
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
-		"target": "ESNext"
+		"target": "ESNext",
+		"types": ["node"]
 	},
 	"exclude": ["node_modules", "dist"],
 	"include": ["src/**/*.ts", "src/**/*.tsx"]

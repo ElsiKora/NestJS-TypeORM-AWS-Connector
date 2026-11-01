@@ -50,11 +50,14 @@ const createFakeDriver = (label, dataSource, behavior) => {
 		releaseCalls: 0,
 	};
 
+	// TypeORM 1 drivers hold the DataSource in dataSource and expose connection only as a deprecated getter
 	const driver = {
-		connection: dataSource,
+		get connection() {
+			return driver.dataSource;
+		},
 		createQueryRunner: (mode = "master") => {
 			const queryRunner = {
-				connection: driver.connection,
+				connection: driver.dataSource,
 				driver,
 				isReleased: false,
 				manager: undefined,
@@ -104,6 +107,7 @@ const createFakeDriver = (label, dataSource, behavior) => {
 				await behavior.disconnectImplementation(driver);
 			}
 		},
+		dataSource,
 		label,
 		options: dataSource.options,
 		state,
