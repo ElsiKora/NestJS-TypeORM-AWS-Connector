@@ -1,14 +1,12 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
-		"baseUrl": "./src",
 		"declaration": true,
 		"emitDeclarationOnly": false,
 		"emitDecoratorMetadata": true,
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
-		"ignoreDeprecations": "6.0",
 		"isolatedModules": true,
 		"module": "ESNext",
 		"moduleResolution": "bundler",
@@ -20,8 +18,8 @@
 		"noUnusedParameters": true,
 		"outDir": "./dist",
 		"paths": {
-			"@modules/*": ["modules/*"],
-			"@shared/*": ["shared/*"]
+			"@modules/*": ["./src/modules/*"],
+			"@shared/*": ["./src/shared/*"]
 		},
 		"skipLibCheck": true,
 		"sourceMap": true,

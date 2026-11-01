@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
 
-import { FormatErrorEvidence } from "../../dist/esm/shared/utility/error-evidence.utility.js";
+import { FormatErrorEvidence } from "../../dist/shared/utility/error-evidence.utility.js";
 
 const RAW_FAILURE_CANARY = "SELECT secret FROM ledger WHERE profile='prod' host=10.0.0.7 url=https://private.invalid password=exposed";
 

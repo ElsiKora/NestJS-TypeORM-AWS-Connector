@@ -1,80 +1,115 @@
-import typescript from "@rollup/plugin-typescript";
-import generatePackageJson from "rollup-plugin-generate-package-json";
-const external = ["@elsikora/nestjs-aws-parameter-store-config", "@aws-sdk/client-ssm", "@aws-sdk/client-secrets-manager", "@nestjs/config", "@nestjs/schedule", "typeorm", "@nestjs/common"];
+import { existsSync, readFileSync } from "node:fs";
+import { builtinModules } from "node:module";
+import path from "node:path";
+
 import resolve from "@rollup/plugin-node-resolve";
-import dtsPathAlias from "rollup-plugin-dts-path-alias";
+import typescript from "@rollup/plugin-typescript";
+import dts from "unplugin-dts/rollup";
 
-export default [
-	{
-		external,
-		input: "src/index.ts",
-		output: {
-			dir: "dist/esm",
-			entryFileNames: (chunkInfo) => {
-				if (chunkInfo.name.includes("node_modules")) {
-					return chunkInfo.name.replace("node_modules", "external") + ".js";
-				}
+const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+const EXTERNAL_PACKAGES = new Set([...builtinModules, ...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]);
+const OUTPUT_DIRECTORY = path.resolve("dist");
+const SOURCE_DIRECTORY = path.resolve("src");
+const RELATIVE_SPECIFIER_PATTERN = /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(["'])(\.{1,2}(?:\/[^"']*)?)\2/g;
+// JSDoc and line comments carry example imports that are not part of the module graph
+const COMMENT_LINE_PATTERN = /^\s*(?:\*|\/\/|\/\*)/;
 
-				return "[name].js";
-			},
-			format: "esm",
-			preserveModules: true,
-			preserveModulesRoot: "src",
-			sourcemap: true,
+/**
+ * Adds explicit extensions to the relative imports of a generated declaration file.
+ * TypeScript keeps specifiers as written in the source, and `moduleResolution: nodenext` consumers need the extension.
+ * @param {string} filePath - Output path of the declaration file.
+ * @param {string} content - Declaration file content.
+ * @returns {{ content: string } | undefined} The rewritten declaration content, or undefined for files that are not declarations.
+ */
+function addDeclarationExtensions(filePath, content) {
+	if (!filePath.endsWith(".d.ts")) {
+		return;
+	}
+
+	const sourceDirectory = path.dirname(path.join(SOURCE_DIRECTORY, path.relative(OUTPUT_DIRECTORY, filePath)));
+
+	return {
+		content: content
+			.split("\n")
+			.map((line) => (COMMENT_LINE_PATTERN.test(line) ? line : line.replaceAll(RELATIVE_SPECIFIER_PATTERN, (_match, prefix, quote, specifier) => `${prefix}${quote}${resolveDeclarationSpecifier(sourceDirectory, specifier, filePath)}${quote}`)))
+			.join("\n"),
+	};
+}
+
+/**
+ * Keeps dependencies, peers and Node.js built-ins out of the bundle, including their subpaths.
+ * @param {string} id - Import specifier.
+ * @returns {boolean} Whether the import stays external.
+ */
+function isExternal(id) {
+	if (id.startsWith("node:")) {
+		return true;
+	}
+
+	const parts = id.split("/");
+	const name = id.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+
+	return EXTERNAL_PACKAGES.has(name);
+}
+
+/**
+ * Resolves an extensionless relative declaration specifier to the `.js` path a Node.js ESM consumer loads.
+ * @param {string} sourceDirectory - Source directory of the declaration that holds the specifier.
+ * @param {string} specifier - Relative specifier as TypeScript emitted it.
+ * @param {string} declarationPath - Output path of the declaration, used in the error message.
+ * @returns {string} The specifier with an explicit `.js` or `/index.js` suffix.
+ * @throws {Error} If the specifier matches no source module.
+ */
+function resolveDeclarationSpecifier(sourceDirectory, specifier, declarationPath) {
+	if (specifier.endsWith(".js")) {
+		return specifier;
+	}
+
+	const target = path.resolve(sourceDirectory, specifier);
+
+	if (existsSync(`${target}.ts`)) {
+		return `${specifier}.js`;
+	}
+
+	if (existsSync(path.join(target, "index.ts"))) {
+		return `${specifier.replace(/\/$/, "")}/index.js`;
+	}
+
+	throw new Error(`Cannot resolve declaration import "${specifier}" in ${declarationPath}`);
+}
+
+export default {
+	external: isExternal,
+	input: "src/index.ts",
+	output: {
+		dir: "dist",
+		entryFileNames: (chunkInfo) => {
+			if (chunkInfo.name.includes("node_modules")) {
+				return chunkInfo.name.replace("node_modules", "external") + ".js";
+			}
+
+			return "[name].js";
 		},
-		plugins: [
-			resolve({
-				include: ["node_modules/tslib/**"],
-			}),
-			dtsPathAlias(),
-			typescript({
-				declaration: true,
-				declarationDir: "dist/esm",
-				outDir: "dist/esm",
-				sourceMap: true,
-				tsconfig: "./tsconfig.build.json",
-			}),
-			generatePackageJson({
-				baseContents: { type: "module" },
-				outputFolder: "dist/esm",
-			}),
-		],
+		format: "esm",
+		preserveModules: true,
+		preserveModulesRoot: "src",
+		sourcemap: true,
 	},
-	{
-		external,
-		input: "src/index.ts",
-		output: {
-			dir: "dist/cjs",
-			entryFileNames: (chunkInfo) => {
-				if (chunkInfo.name.includes("node_modules")) {
-					return chunkInfo.name.replace("node_modules", "external") + ".js";
-				}
-
-				return "[name].js";
-			},
-			exports: "named",
-			format: "cjs",
-			preserveModules: true,
-			preserveModulesRoot: "src",
-			sourcemap: true,
-		},
-		plugins: [
-			resolve({
-				include: ["node_modules/tslib/**"],
-			}),
-
-			typescript({
-				declaration: true,
-				declarationDir: "dist/cjs",
-				outDir: "dist/cjs",
-				sourceMap: true,
-				tsconfig: "./tsconfig.build.json",
-			}),
-			dtsPathAlias(),
-			generatePackageJson({
-				baseContents: { type: "commonjs" },
-				outputFolder: "dist/cjs",
-			}),
-		],
-	},
-];
+	plugins: [
+		resolve({
+			include: ["node_modules/tslib/**"],
+		}),
+		typescript({
+			declaration: false,
+			outDir: "dist",
+			sourceMap: true,
+			tsconfig: "./tsconfig.build.json",
+		}),
+		dts({
+			beforeWriteFile: addDeclarationExtensions,
+			entryRoot: "src",
+			outDirs: ["dist"],
+			tsconfigPath: "./tsconfig.build.json",
+		}),
+	],
+};
