@@ -91,14 +91,22 @@ These lookups inherit omitted application, environment, instance, namespace, reg
 Use `dataSourceToken` when one Nest application owns multiple TypeORM connections:
 
 ```typescript copy
-TypeOrmAwsConnectorModule.registerAsync({
-	dataSourceToken: getDataSourceToken("provider"),
-	imports: [ConfigModule],
-	inject: [ConfigService],
-	useFactory: (configService: ConfigService) => ({
-		entities: [ProviderEntity],
-		poolSize: configService.get<number>("PROVIDER_DB_POOL_SIZE", 10),
-	}),
+TypeOrmModule.forRootAsync({
+	imports: [
+		TypeOrmAwsConnectorModule.registerAsync({
+			// Must match the name below so RotatorService binds to this DataSource
+			dataSourceToken: getDataSourceToken("provider"),
+			imports: [ConfigModule],
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				entities: [ProviderEntity],
+				poolSize: configService.get<number>("PROVIDER_DB_POOL_SIZE", 10),
+			}),
+		}),
+	],
+	inject: [TypeOrmAwsConnectorService],
+	name: "provider",
+	useFactory: async (connectorService: TypeOrmAwsConnectorService) => connectorService.getTypeOrmOptions(),
 });
 ```
 

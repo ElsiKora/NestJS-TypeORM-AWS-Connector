@@ -40,8 +40,8 @@ const CONSUMERS = [
 const STACK = ["@aws-sdk/client-ssm", "@elsikora/nestjs-aws-parameter-store-config", "@nestjs/common", "@nestjs/config", "@nestjs/core", "@nestjs/typeorm", "@types/node", "pg", "reflect-metadata", "rxjs", "typeorm", "typescript"];
 // The SWC toolchain is not a repository devDependency, so the smoke pins it exactly
 const SWC_TOOLCHAIN = { "@swc/cli": "0.8.1", "@swc/core": "1.16.18" };
-// Both apps import the AWS stub; the swc app imports it without an extension
-const SHARED_SOURCE = path.join(CONSUMER_ROOT, "app/src/aws-stub.ts");
+// Both apps import the AWS stub and the database role helpers; the swc app imports them without an extension
+const SHARED_SOURCES = ["aws-stub.ts", "database-role.ts"].map((file) => path.join(CONSUMER_ROOT, "app/src", file));
 
 const IMPORT_CHECKS = [
 	{ arguments_: ["--input-type=module", "--eval", `await import(${JSON.stringify(PACKAGE_NAME)}); console.log(JSON.stringify(process.env.SMOKE_DOTENV ?? null));`], name: "esm import" },
@@ -186,7 +186,11 @@ try {
 		const consumerDirectory = path.join(workDirectory, consumer.name);
 
 		cpSync(path.join(CONSUMER_ROOT, consumer.app, "src"), path.join(consumerDirectory, "src"), { recursive: true });
-		cpSync(SHARED_SOURCE, path.join(consumerDirectory, "src", path.basename(SHARED_SOURCE)));
+
+		for (const source of SHARED_SOURCES) {
+			cpSync(source, path.join(consumerDirectory, "src", path.basename(source)));
+		}
+
 		cpSync(path.join(CONSUMER_ROOT, consumer.name, "tsconfig.json"), path.join(consumerDirectory, "tsconfig.json"));
 		writeFileSync(path.join(consumerDirectory, "package.json"), JSON.stringify({ name: `consumer-${consumer.name}`, private: true, type: consumer.type }));
 

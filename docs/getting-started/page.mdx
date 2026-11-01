@@ -14,7 +14,7 @@ The package is ES modules only. CommonJS applications keep `require()` through N
 
 ## Register Parameter Store
 
-Register `ParameterStoreConfigModule` before the connector. The connector uses its structured lookup context to resolve SSM values:
+Register `ConfigModule.forRoot({ isGlobal: true })` and `ParameterStoreConfigModule` before the connector. The connector injects `ConfigService` inside its own module and uses the parameter store's structured lookup context to resolve SSM values:
 
 ```typescript copy
 ParameterStoreConfigModule.registerAsync({

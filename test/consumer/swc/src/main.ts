@@ -12,13 +12,14 @@ import { getRepositoryToken } from "@nestjs/typeorm";
 import { DataSource } from "typeorm";
 
 import { AppModule } from "./app.module";
-import { type IAwsStub, type IAwsStubDatabase, parseDatabaseUrl, startAwsStub } from "./aws-stub";
+import { type IAwsStub, type IAwsStubCredentials, type IAwsStubDatabase, parseDatabaseUrl, startAwsStub } from "./aws-stub";
+import { createDatabaseRole, dropDatabaseRole, readCurrentUser } from "./database-role";
 
 import "reflect-metadata";
 
 /**
  * Boots an application built by SWC to native ES modules, as with the Nest CLI SWC builder, with entities that
- * import each other through Relation<T>, loads both sides of the relation and rotates the credentials.
+ * import each other through Relation<T>, loads both sides of the relation and rotates the credentials to a new database role.
  * @returns {Promise<void>}
  */
 async function main(): Promise<void> {
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
 	process.env.AWS_SECRET_ACCESS_KEY = "smoke";
 
 	let app: INestApplicationContext | undefined;
+	let rotated: IAwsStubCredentials | undefined;
 
 	try {
 		app = await NestFactory.createApplicationContext(AppModule.register(stub.endpoint), { abortOnError: false, logger: false });
@@ -48,7 +50,10 @@ async function main(): Promise<void> {
 		assert.deepEqual({ id: book.author.id, name: book.author.name }, { id: authorId, name: "Ann" });
 		process.stdout.write("PASS swc esm: ManyToOne side of a Relation<T> cycle\n");
 
+		rotated = await createDatabaseRole(dataSource);
+		stub.rotateSecret(rotated);
 		await app.get(RotatorService).rotateDatabaseConnection();
+		assert.equal(await readCurrentUser(dataSource), rotated.username);
 		// Every TypeORM 1 driver class has dataSource, the Driver interface does not declare it
 		assert.equal((dataSource.driver as unknown as { dataSource: DataSource }).dataSource, dataSource);
 		const author: AuthorEntity = await authors.findOneOrFail({ relations: { books: true }, where: { id: authorId } });
@@ -64,6 +69,10 @@ async function main(): Promise<void> {
 		// A failed assertion must not leave the pool and the rotation interval holding the process open
 		await app?.close();
 		await stub.close();
+
+		if (rotated) {
+			await dropDatabaseRole(database, rotated.username);
+		}
 	}
 }
 

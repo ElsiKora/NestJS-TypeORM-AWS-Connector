@@ -9,15 +9,17 @@ import { NestFactory } from "@nestjs/core";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { DataSource } from "typeorm";
 
-import { type IAwsStub, type IAwsStubDatabase, parseDatabaseUrl, startAwsStub } from "./aws-stub.js";
+import { type IAwsStub, type IAwsStubCredentials, type IAwsStubDatabase, parseDatabaseUrl, startAwsStub } from "./aws-stub.js";
+import { createDatabaseRole, dropDatabaseRole, readCurrentUser } from "./database-role.js";
 import { AppModule, retiredGenerations } from "./module.js";
 import { NoteEntity } from "./note.entity.js";
 
 import "reflect-metadata";
 
 /**
- * Starts a Nest 12 application with the connector against Postgres, writes and reads an entity, rotates the
- * credentials through the TypeORM 1 driver swap, checks the AWS calls and closes the application.
+ * Starts a Nest 12 application with the connector against Postgres, writes and reads an entity, rotates the secret to a
+ * new database role, rotates the connection through the TypeORM 1 driver swap, checks that the pool now connects as that
+ * role and that the AWS calls happened, and closes the application.
  * @param {string} name - Scenario name.
  * @param {(endpoint: string) => DynamicModule} createModule - Builds the application module for the stub endpoint.
  * @returns {Promise<void>}
@@ -35,6 +37,7 @@ async function runScenario(name: string, createModule: (endpoint: string) => Dyn
 	retiredGenerations.length = 0;
 
 	let app: INestApplicationContext | undefined;
+	let rotated: IAwsStubCredentials | undefined;
 
 	try {
 		app = await NestFactory.createApplicationContext(createModule(stub.endpoint), { abortOnError: false, logger: false });
@@ -47,8 +50,14 @@ async function runScenario(name: string, createModule: (endpoint: string) => Dyn
 		assert.equal((dataSource.options as { host?: string }).host, database.host);
 		assert.equal((dataSource.options as { username?: string }).username, database.username);
 		await notes.save({ id, text: name });
+		assert.equal(await readCurrentUser(dataSource), database.username);
 
+		rotated = await createDatabaseRole(dataSource);
+		stub.rotateSecret(rotated);
 		await app.get(RotatorService).rotateDatabaseConnection();
+		assert.equal((dataSource.options as { username?: string }).username, rotated.username);
+		assert.equal((dataSource.options as { password?: string }).password, rotated.password);
+		assert.equal(await readCurrentUser(dataSource), rotated.username);
 		// Every TypeORM 1 driver class has dataSource, the Driver interface does not declare it
 		assert.equal((dataSource.driver as unknown as { dataSource: DataSource }).dataSource, dataSource);
 		const note: NoteEntity = await notes.findOneByOrFail({ id });
@@ -75,6 +84,10 @@ async function runScenario(name: string, createModule: (endpoint: string) => Dyn
 		// A failed assertion must not leave the pool and the rotation interval holding the process open
 		await app?.close();
 		await stub.close();
+
+		if (rotated) {
+			await dropDatabaseRole(database, rotated.username);
+		}
 	}
 }
 

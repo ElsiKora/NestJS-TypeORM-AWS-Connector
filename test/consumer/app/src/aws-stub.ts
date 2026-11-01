@@ -6,7 +6,14 @@ import { createServer } from "node:http";
 export interface IAwsStub {
 	close: () => Promise<void>;
 	endpoint: string;
+	/** Replaces the credentials the secret returns from the next GetSecretValue on, as a Secrets Manager rotation does. */
+	rotateSecret: (credentials: IAwsStubCredentials) => void;
 	targets: Array<string>;
+}
+
+export interface IAwsStubCredentials {
+	password: string;
+	username: string;
 }
 
 export interface IAwsStubDatabase {
@@ -35,10 +42,11 @@ export function parseDatabaseUrl(url: string): IAwsStubDatabase {
  * Starts an HTTP server that answers the AWS JSON protocol calls the connector makes: SSM GetParametersByPath
  * for the parameter store config module and Secrets Manager GetSecretValue for the database credentials.
  * @param {IAwsStubDatabase} database - Database the parameters and the secret point at.
- * @returns {Promise<IAwsStub>} The endpoint, the recorded X-Amz-Target values and a close callback.
+ * @returns {Promise<IAwsStub>} The endpoint, the recorded X-Amz-Target values, a secret rotation callback and a close callback.
  */
 export async function startAwsStub(database: IAwsStubDatabase): Promise<IAwsStub> {
 	const targets: Array<string> = [];
+	let secret: IAwsStubCredentials = { password: database.password, username: database.username };
 
 	const parameters: Record<string, string> = {
 		"aws-ecs-fargate/smoke-api/postgres/database-name": database.databaseName,
@@ -70,7 +78,7 @@ export async function startAwsStub(database: IAwsStubDatabase): Promise<IAwsStub
 			}
 
 			if (target === "secretsmanager.GetSecretValue" && (JSON.parse(body) as { SecretId: string }).SecretId === AWS_STUB_SECRET_ID) {
-				response.end(JSON.stringify({ Name: AWS_STUB_SECRET_ID, SecretString: JSON.stringify({ password: database.password, username: database.username }) }));
+				response.end(JSON.stringify({ Name: AWS_STUB_SECRET_ID, SecretString: JSON.stringify(secret) }));
 
 				return;
 			}
@@ -96,6 +104,9 @@ export async function startAwsStub(database: IAwsStubDatabase): Promise<IAwsStub
 			);
 		},
 		endpoint: `http://127.0.0.1:${String(port)}`,
+		rotateSecret: (credentials: IAwsStubCredentials) => {
+			secret = { ...credentials };
+		},
 		targets,
 	};
 }

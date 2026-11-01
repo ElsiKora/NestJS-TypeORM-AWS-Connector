@@ -227,7 +227,7 @@ npm ls @elsikora/nestjs-typeorm-aws-connector @elsikora/nestjs-aws-parameter-sto
 
 ### Prerequisites: Register Parameter Store Config Module
 
-Before using the connector, register `ParameterStoreConfigModule` from `@elsikora/nestjs-aws-parameter-store-config`:
+Before using the connector, register `ParameterStoreConfigModule` from `@elsikora/nestjs-aws-parameter-store-config`. Register `ConfigModule` as global: the connector injects `ConfigService` inside its own module:
 
 ```typescript
 import { Module } from "@nestjs/common";
@@ -236,7 +236,7 @@ import { ENamespace, ParameterStoreConfigModule } from "@elsikora/nestjs-aws-par
 
 @Module({
 	imports: [
-		ConfigModule.forRoot(),
+		ConfigModule.forRoot({ isGlobal: true }),
 		ParameterStoreConfigModule.registerAsync({
 			imports: [ConfigModule],
 			inject: [ConfigService],
@@ -266,20 +266,25 @@ import { UserEntity } from "./entities/user.entity";
 
 @Module({
 	imports: [
-		// Register the connector with your entities
-		TypeOrmAwsConnectorModule.register({
-			entities: [UserEntity],
-		}),
-		// Wire it into TypeOrmModule
 		TypeOrmModule.forRootAsync({
-			imports: [TypeOrmAwsConnectorModule],
+			// Register the connector inside the TypeORM factory module so the factory can inject its service
+			imports: [
+				TypeOrmAwsConnectorModule.register({
+					entities: [UserEntity],
+					rotation: {
+						isEnabled: false,
+					},
+				}),
+			],
 			inject: [TypeOrmAwsConnectorService],
-			useFactory: async (connector: TypeOrmAwsConnectorService) => connector.getTypeOrmOptions(),
+			useFactory: async (connectorService: TypeOrmAwsConnectorService) => connectorService.getTypeOrmOptions(),
 		}),
 	],
 })
 export class DatabaseModule {}
 ```
+
+The connector resolves `DataSourceOptions`; `TypeOrmModule` remains the owner that initializes the live `DataSource`. Set `rotation.isEnabled: false` for one-shot processes, or see [Enabling Credential Rotation](#enabling-credential-rotation) for long-running services.
 
 ---
 
@@ -456,19 +461,37 @@ Omit the raw `shutdownDrainTimeoutMs` property when the enabled service should r
 Register the connector separately inside each Nest database module that owns a specific TypeORM connection. The connector module is scoped to that module registration, so multiple connector instances can safely coexist in one application.
 
 ```typescript
-import { getDataSourceToken } from "@nestjs/typeorm";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { getDataSourceToken, TypeOrmModule } from "@nestjs/typeorm";
+import { TypeOrmAwsConnectorModule, TypeOrmAwsConnectorService } from "@elsikora/nestjs-typeorm-aws-connector";
+import { ProviderEntity } from "./entities/provider.entity";
 
-TypeOrmAwsConnectorModule.registerAsync({
-	dataSourceToken: getDataSourceToken("provider"),
-	imports: [ConfigModule],
-	inject: [ConfigService],
-	useFactory: (configService: ConfigService) => ({
-		entities: [ProviderEntity],
-	}),
-});
+@Module({
+	imports: [
+		TypeOrmModule.forRootAsync({
+			imports: [
+				TypeOrmAwsConnectorModule.registerAsync({
+					// Must match the name below so RotatorService binds to this DataSource
+					dataSourceToken: getDataSourceToken("provider"),
+					imports: [ConfigModule],
+					inject: [ConfigService],
+					useFactory: (configService: ConfigService) => ({
+						entities: [ProviderEntity],
+						poolSize: configService.get<number>("PROVIDER_DB_POOL_SIZE", 10),
+					}),
+				}),
+			],
+			inject: [TypeOrmAwsConnectorService],
+			name: "provider",
+			useFactory: async (connectorService: TypeOrmAwsConnectorService) => connectorService.getTypeOrmOptions(),
+		}),
+	],
+})
+export class ProviderDatabaseModule {}
 ```
 
-Use `dataSourceToken` when the connector's `RotatorService` should bind to a named TypeORM `DataSource` instead of the default connection token.
+Use `dataSourceToken` when the connector's `RotatorService` should bind to a named TypeORM `DataSource` instead of the default connection token. Each registration owns an independent interval, generation state, and event callback.
 
 ---
 

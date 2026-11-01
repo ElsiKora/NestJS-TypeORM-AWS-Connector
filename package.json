@@ -45,7 +45,7 @@
 		"release": "semantic-release",
 		"test": "npm run build && npm run test:unit",
 		"test:consumer": "node scripts/test/consumer-smoke.mjs",
-		"test:unit": "node --test test/typeorm-aws-connector/error-boundary.spec.mjs test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
+		"test:unit": "node --test --test-timeout=60000 --test-force-exit test/typeorm-aws-connector/error-boundary.spec.mjs test/typeorm-aws-connector/rotator.service.spec.mjs test/typeorm-aws-connector/typeorm-aws-connector.module.spec.mjs"
 	},
 	"config": {
 		"commitizen": {
