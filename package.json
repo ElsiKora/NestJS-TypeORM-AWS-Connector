@@ -65,7 +65,7 @@
 		"@elsikora/eslint-config": "^3.10.2",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.1.0",
 		"@elsikora/git-branch-lint": "^1.2.2",
-		"@elsikora/nestjs-aws-parameter-store-config": "3.0.0-dev.1",
+		"@elsikora/nestjs-aws-parameter-store-config": "3.0.0",
 		"@nestjs/cli": "^12.0.11",
 		"@nestjs/common": "^12.3.2",
 		"@nestjs/config": "^12.0.1",
@@ -106,7 +106,7 @@
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-ssm": ">=3.535.0 <4",
-		"@elsikora/nestjs-aws-parameter-store-config": "^3.0.0-dev.1",
+		"@elsikora/nestjs-aws-parameter-store-config": "^3.0.0",
 		"@nestjs/common": ">=12.3.2 <13",
 		"@nestjs/config": ">=12.0.1 <13",
 		"@nestjs/core": ">=12.3.2 <13",
