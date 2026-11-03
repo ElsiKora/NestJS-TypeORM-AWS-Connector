@@ -1,3 +1,21 @@
+# [3.0.0](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v2.0.1...v3.0.0) (2026-11-03)
+
+### Bug Fixes
+
+- **deps:** require the stable parameter store config 3 ([47e3bde](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/47e3bde0d525cb42de1212e05389c144f20fe141))
+
+### Build System
+
+- **deps:** move to nestjs 12, typeorm 1 and the latest tooling majors ([3fb1158](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/3fb1158104b2c4add8fe22edeac1ceabc1fe528a))
+- **package:** publish an esm-only build with extension-qualified declarations ([f855984](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/commit/f8559848f3ed95e8bf47df023af50adddaed0fe9))
+
+### BREAKING CHANGES
+
+- **package:** the package is ES modules only. dist/esm, dist/cjs and the require export condition are gone. A commonjs application keeps require() and loads the package through node's require(esm), and deep imports into dist no longer resolve.
+- **deps:** the peer ranges are now @nestjs/common and @nestjs/core
+
+> =12.3.2 <13, @nestjs/config >=12.0.1 <13, typeorm >=1.1.2 <2, @elsikora/nestjs-aws-parameter-store-config ^3.0.0-dev.1 and @aws-sdk/client-ssm >=3.535.0 <4, and engines.node is ^22.13.0 || >=24.11.0. The application installs the parameter store config package and @nestjs/config itself. Applications on nestjs 11, typeorm 0.3 or node 20 stay on 2.x.
+
 ## [2.0.1](https://github.com/ElsiKora/NestJS-TypeORM-AWS-Connector/compare/v2.0.0...v2.0.1) (2026-09-01)
 
 ### Bug Fixes
